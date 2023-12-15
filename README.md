@@ -30,6 +30,18 @@ To install the package and its dependencies, follow these steps:
 
 ## Configuration
 
+### Variables
+
+Depending on the command used you may need to set some environment variables
+
+```
+export OPENAI_API_KEY=<your API Key>
+# set it to be used always
+echo "export OPENAI_API_KEY=X" >> ~/.bashrc
+```
+
+### YAML
+
 Make sure to set the correct `yaml` configuration file under the config folder.
 
 Run the associated operation using the `saia-cli` entry point, supported the `ingest` verb only.
