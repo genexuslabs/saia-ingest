@@ -2782,6 +2782,27 @@ plugins = ["importlib-metadata"]
 windows-terminal = ["colorama (>=0.4.6)"]
 
 [[package]]
+name = "pypdf"
+version = "3.17.2"
+description = "A pure-python PDF library capable of splitting, merging, cropping, and transforming PDF files"
+optional = false
+python-versions = ">=3.6"
+files = [
+    {file = "pypdf-3.17.2-py3-none-any.whl", hash = "sha256:e149ed50aa41e04b176246714806cd8d6c6c6d68b528508f849642959041963a"},
+    {file = "pypdf-3.17.2.tar.gz", hash = "sha256:d6f077060912f8292d7db3da04f7bf2428ac974781e11eef219193a22120f649"},
+]
+
+[package.dependencies]
+typing_extensions = {version = ">=3.7.4.3", markers = "python_version < \"3.10\""}
+
+[package.extras]
+crypto = ["PyCryptodome", "cryptography"]
+dev = ["black", "flit", "pip-tools", "pre-commit (<2.18.0)", "pytest-cov", "pytest-socket", "pytest-timeout", "pytest-xdist", "wheel"]
+docs = ["myst_parser", "sphinx", "sphinx_rtd_theme"]
+full = ["Pillow (>=8.0.0)", "PyCryptodome", "cryptography"]
+image = ["Pillow (>=8.0.0)"]
+
+[[package]]
 name = "pytest"
 version = "7.4.3"
 description = "pytest: simple powerful testing with Python"
@@ -3989,4 +4010,4 @@ multidict = ">=4.0"
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.9,<3.12"
-content-hash = "adbe35d9b5c1302bdb98f641fab87e3b22f6f135ed3ef08e089b05ec9702f11b"
+content-hash = "26c3b3e67ed1068291008bcc5b9459e60c325b624ba4878d5db675cc53568e80"
