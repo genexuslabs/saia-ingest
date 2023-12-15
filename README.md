@@ -5,7 +5,7 @@ To install the package and its dependencies, follow these steps:
 1. Create a new virtual environment and activate it:
 
    ```bash
-   virtualenv env
+   sudo apt install python3-venv
    python3 -m venv venv
    source venv/bin/activate
    # Windows
