@@ -20,6 +20,10 @@ from amazon_s3.s3reader import S3Reader
 
 from llama_hub.github_repo import GithubClient, GithubRepositoryReader
 
+import logging
+import shutil
+from .profile_utils import is_valid_profile, file_upload, file_delete
+
 verbose = False
 
 def split_documents(documents, chunk_size=1000, chunk_overlap=100):
@@ -61,7 +65,7 @@ def save_to_file(lc_documents, prefix='module'):
         with open(file_path, 'w', encoding='utf8') as json_file:
             json.dump(serialized_docs, json_file, ensure_ascii=False, indent=4)
     except Exception as e:
-        print('save_to_file exception:', e)
+        logging.getLogger().error('save_to_file exception:', e)
 
 
 def ingest_jira(configuration: str) -> bool:
@@ -92,7 +96,7 @@ def ingest_jira(configuration: str) -> bool:
             if current_length >= total:
                 keep_processing = False
 
-        print(f"processed {current_length} from {total}")
+        logging.getLogger().info(f"processed {current_length} from {total}")
 
         lc_documents = all_documents
 
@@ -108,7 +112,7 @@ def ingest_jira(configuration: str) -> bool:
         ingest(lc_documents, index_name, jira_namespace)        
 
     except Exception as e:
-        print(f"Error: {e}")
+        logging.getLogger().error(f"Error: {e}")
         ret = False
     finally:
         return ret
@@ -143,9 +147,9 @@ def ingest_confluence(configuration: str) -> bool:
                 space_documents = load_documents(loader, space_key=key, include_attachments=include_attachments, include_children=include_children)
                 for item in space_documents:
                     documents.append(item)
-                print(f"space {key} documents {space_documents.__len__()}")
+                logging.getLogger().info(f"space {key} documents {space_documents.__len__()}")
             except Exception as e:
-                print(f"Error processing {key}: {e}")
+                logging.getLogger().error(f"Error processing {key}: {e}")
                 continue
 
         lc_documents = split_documents(documents, chunk_size=chunk_size, chunk_overlap=chunk_overlap)
@@ -157,12 +161,12 @@ def ingest_confluence(configuration: str) -> bool:
         index_name = config['vectorstore']['index_name']
         initialize_vectorstore_connection(api_key=vectorstore_api_key, environment=environment)
 
-        print(f"Documents {documents.__len__()} Chunks {lc_documents.__len__()}")
+        logging.getLogger().info(f"Documents {documents.__len__()} Chunks {lc_documents.__len__()}")
 
         ingest(lc_documents, index_name, confluence_namespace)
 
     except Exception as e:
-        print(f"Error: {e}")
+        logging.getLogger().error(f"Error: {e}")
         ret = False
     finally:
         return ret
@@ -207,7 +211,7 @@ def ingest_github(configuration: str) -> bool:
         documents = loader.load_langchain_documents(commit_sha=commit_sha, branch=branch)
 
         if documents.__len__() <= 0:
-            print('No documents found')
+            logging.getLogger().error('No documents found')
             return False
         
         lc_documents = split_documents(documents, chunk_size=chunk_size, chunk_overlap=chunk_overlap)
@@ -219,7 +223,7 @@ def ingest_github(configuration: str) -> bool:
         ingest(lc_documents, index_name, namespace)
 
     except Exception as e:
-        print(f"Error: {e}")
+        logging.getLogger().error(f"Error: {e}")
         ret = False
     finally:
         return ret
@@ -240,6 +244,18 @@ def ingest_s3(
         aws_secret_key = config['s3']['aws_secret_key']
         prefix = config['s3']['prefix'] or None
 
+        # Saia
+        saia_base_url = config['saia'].get('base_url', None)
+        saia_api_token = config['saia'].get('api_token', None)
+        saia_profile = config['saia'].get('profile', None)
+
+        if saia_base_url is not None:
+            ret = is_valid_profile(saia_base_url, saia_api_token, saia_profile)
+            if ret is False:
+                logging.getLogger().error(f"Invalid profile {saia_profile}")
+                return ret
+
+        # Default to ingest directly to index
         loader = S3Reader(
             s3_endpoint_url=url,
             region_name=region,
@@ -251,13 +267,29 @@ def ingest_s3(
             timestamp=timestamp
             )
     
+        if saia_base_url is not None:
+            # Use Saia API to ingest
+            file_paths = loader.get_files()
+            file_path = None
+            for file in file_paths:
+                file_path = os.path.dirname(file)
+                file_name = os.path.basename(file)
+                # TODO: get ID from file_name
+                #file_delete(saia_base_url, saia_api_token, saia_profile, file_name)
+                file_upload(saia_base_url, saia_api_token, saia_profile, file)
+            
+            if file_path:
+                shutil.rmtree(file_path)
+            return True
+
+        ## Fallback to directly ingest to vectorstore
         documents = loader.load_langchain_documents()
 
         save_to_file(documents, prefix='s3')
 
         if verbose:
             for document in documents:
-                print(document.lc_id, document.metadata)
+                logging.getLogger().info(document.lc_id, document.metadata)
 
         # Vectorstore
         api_key = config['vectorstore']['api_key']
@@ -269,14 +301,14 @@ def ingest_s3(
         if doc_count <= 0:
             return ret
 
-        print(f"Vectorizing {doc_count} items to {index_name}/{namespace}")
+        logging.getLogger().info(f"Vectorizing {doc_count} items to {index_name}/{namespace}")
 
         initialize_vectorstore_connection(api_key=api_key, environment=environment)
 
-        ingest(documents, index_name, namespace)
+        ret = ingest(documents, index_name, namespace)
 
     except Exception as e:
-        print(f"Error: {e}")
+        logging.getLogger().error(f"Error: {e}")
         ret = False
     finally:
         return ret
