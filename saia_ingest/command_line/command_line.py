@@ -1,8 +1,18 @@
 import argparse
 from typing import Any, Optional
 from datetime import datetime, timezone
+import logging
+from logging.handlers import RotatingFileHandler
 
 from ..ingestor import ingest_s3, ingest_jira, ingest_confluence, ingest_github
+
+logging.basicConfig(level=logging.INFO)
+timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+log_file_name = f"debug/run_{timestamp}.txt"
+file_handler = RotatingFileHandler(log_file_name, maxBytes=1024*1024*1024, backupCount=50)
+formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+file_handler.setFormatter(formatter)
+logging.getLogger().addHandler(file_handler)
 
 def handle_ingest(
     config: Optional[str] = None,
@@ -31,11 +41,13 @@ def handle_ingest(
     elif type == "github":
         ret = ingest_github(config_file)
     else:
-        print(f"Unknown {type} type")
+        logging.getLogger().error(f"Unknown {type} type")
         return False
 
     if ret:
-        print(f"Successfully {type} ingestion '{timestamp}' config: {config_file}")
+        logging.getLogger().info(f"Successfully {type} ingestion '{timestamp}' config: {config_file}")
+    
+    file_handler.close()
 
 
 def main() -> None:
@@ -74,7 +86,7 @@ def main() -> None:
 
     # Parse the command-line arguments
     args = parser.parse_args()
-    print("parsing arguments...")
+    logging.getLogger().info("parsing arguments...")
 
     # Call the appropriate function based on the command
     args.func(args)
