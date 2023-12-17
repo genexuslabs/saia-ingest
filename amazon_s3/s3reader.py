@@ -2,6 +2,7 @@
 """S3Reader class for reading from S3 buckets."""
 
 import os
+import logging
 import tempfile
 import boto3
 from datetime import datetime
@@ -82,9 +83,93 @@ class S3Reader(BaseReader):
 
         self.timestamp = timestamp
 
+    def get_files(self) -> [str]:
+        """Return a list of documents"""
+        skip_count = 0
+        count = 0
+
+        s3 = boto3.resource("s3")
+        s3_client = boto3.client("s3")
+        if self.aws_access_id:
+            session = boto3.Session(
+                region_name=self.region_name,                
+                aws_access_key_id=self.aws_access_id,
+                aws_secret_access_key=self.aws_access_secret,
+                aws_session_token=self.aws_session_token,
+            )
+            s3 = session.resource("s3", region_name=self.region_name)
+            s3_client = session.client("s3", region_name=self.region_name, endpoint_url=self.s3_endpoint_url)
+
+        temp_dir = tempfile.mkdtemp()
+
+        logging.getLogger().info(f"Downloading files from '{self.bucket}' to {temp_dir}")
+
+        file_paths = []
+
+        if self.key:
+            suffix = Path(self.key).suffix
+            filepath = f"{temp_dir}/{next(tempfile._get_candidate_names())}{suffix}"
+            s3_client.download_file(self.bucket, self.key, filepath)
+            file_paths.append(filepath)
+        else:
+            bucket = s3.Bucket(self.bucket)
+            for i, obj in enumerate(bucket.objects.filter(Prefix=self.prefix)):
+                if self.num_files_limit is not None and i > self.num_files_limit:
+                    break
+
+                suffix = Path(obj.key).suffix
+
+                is_dir = obj.key.endswith("/")  # skip folders
+                is_bad_ext = (
+                    self.required_exts is not None
+                    and suffix not in self.required_exts  # skip other extentions
+                )
+
+                if is_dir or is_bad_ext:
+                    continue
+
+                count += 1
+                temp_name = next(tempfile._get_candidate_names())
+                temp_name = obj.key.split("/")[-1]
+
+                filepath = (
+                    f"{temp_dir}/{temp_name}"
+                )
+
+                if not os.path.exists(temp_dir):
+                    os.makedirs(temp_dir)
+
+                original_key = obj.key
+
+                skip_file = False
+                if self.timestamp is not None and self.timestamp > obj.last_modified:
+                    skip_file = True
+                    skip_count += 1
+                if skip_file:
+                    continue
+
+                try:
+                    # https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/s3/client/download_file.html#S3.Client.download_file
+                    s3.meta.client.download_file(self.bucket, original_key, filepath)
+                    file_paths.append(filepath)
+                    logging.getLogger().info(f" {obj.key} to {temp_name}")
+                except Exception as e:
+                    if e.response['Error']['Code'] == '404':
+                        logging.getLogger().info(f"The object '{obj.key}' does not exist.")
+                    elif e.response['Error']['Code'] == '403':
+                        logging.getLogger().info(f"Forbidden access to '{obj.key}'")
+                    else:
+                        raise e
+        
+        logging.getLogger().info(f"Skipped: {skip_count} Total: {count}")
+        return file_paths
+
+
     def load_data(self) -> List[Document]:
         """Load file(s) from S3."""
         
+        file_paths = self.get_files()
+        """
         skip_count = 0
         count = 0
 
@@ -101,7 +186,7 @@ class S3Reader(BaseReader):
             s3_client = session.client("s3", region_name=self.region_name, endpoint_url=self.s3_endpoint_url)
 
         with tempfile.TemporaryDirectory() as temp_dir:
-            print(f"Downloading files from '{self.bucket}' to {temp_dir}")
+            logging.getLogger().info(f"Downloading files from '{self.bucket}' to {temp_dir}")
 
             file_paths = []
 
@@ -151,37 +236,39 @@ class S3Reader(BaseReader):
                         # https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/s3/client/download_file.html#S3.Client.download_file
                         s3.meta.client.download_file(self.bucket, original_key, filepath)
                         file_paths.append(filepath)
-                        print(f" {obj.key} to {temp_name}")
+                        logging.getLogger().info(f" {obj.key} to {temp_name}")
                     except Exception as e:
                         if e.response['Error']['Code'] == '404':
-                            print(f"The object '{obj.key}' does not exist.")
+                            logging.getLogger().info(f"The object '{obj.key}' does not exist.")
                         elif e.response['Error']['Code'] == '403':
-                            print(f"Forbidden access to '{obj.key}'")
+                            logging.getLogger().info(f"Forbidden access to '{obj.key}'")
                         else:
                             raise e
             
-            print(f"Skipped: {skip_count} Total: {count}")
+            logging.getLogger().info(f"Skipped: {skip_count} Total: {count}")
+        """
             
-            try:
-                from llama_index import SimpleDirectoryReader
-            except ImportError:
-                custom_reader_path = self.custom_reader_path
+        temp_dir = os.path.dirname(file_paths[0]) if len(file_paths) > 0 else None
+        try:
+            from llama_index import SimpleDirectoryReader
+        except ImportError:
+            custom_reader_path = self.custom_reader_path
 
-                if custom_reader_path is not None:
-                    SimpleDirectoryReader = download_loader(
-                        "SimpleDirectoryReader", custom_path=custom_reader_path
-                    )
-                else:
-                    SimpleDirectoryReader = download_loader("SimpleDirectoryReader")
+            if custom_reader_path is not None:
+                SimpleDirectoryReader = download_loader(
+                    "SimpleDirectoryReader", custom_path=custom_reader_path
+                )
+            else:
+                SimpleDirectoryReader = download_loader("SimpleDirectoryReader")
 
-            loader = SimpleDirectoryReader(
-                temp_dir,
-                file_extractor=self.file_extractor,
-                required_exts=self.required_exts,
-                filename_as_id=self.filename_as_id,
-                num_files_limit=self.num_files_limit,
-                file_metadata=self.file_metadata,
-            )
+        loader = SimpleDirectoryReader(
+            temp_dir,
+            file_extractor=self.file_extractor,
+            required_exts=self.required_exts,
+            filename_as_id=self.filename_as_id,
+            num_files_limit=self.num_files_limit,
+            file_metadata=self.file_metadata,
+        )
 
-            documents = loader.load_data()
-            return documents
+        documents = loader.load_data()
+        return documents
