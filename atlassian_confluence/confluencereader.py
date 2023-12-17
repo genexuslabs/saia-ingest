@@ -324,7 +324,7 @@ class ConfluenceReader(BaseReader):
         url = self.base_url + page["_links"]["tinyui"]
 
         if processed_content.__len__() < self.MIN_TEXT_LENGTH:
-            print(f"skip {id} {url}")
+            logging.getLogger().info(f"skip {id} {url}")
 
             return None
 
