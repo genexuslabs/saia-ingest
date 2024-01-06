@@ -1,3 +1,4 @@
+import time
 import logging
 import requests
 
@@ -46,6 +47,7 @@ def file_upload(
     try:
         url = f"{base_url}/v1/search/profile/{profile}/document"
         logging.getLogger().info(f"using {url}")
+        start_time = time.time()
         with open(file_path, "rb") as file:
             file_name = file.name.split("/")[-1]
             files = {"file": (file_name, file, "application/octet-stream")}
@@ -65,6 +67,8 @@ def file_upload(
             ret = False
         else:
             logging.getLogger().info(f"uploaded {file_name}\n{response_body}\n")
+        end_time = time.time()
+        logging.getLogger().info(f"elapsed time: {end_time - start_time}s")
     except Exception as e:
         if e.response['Error']['Code'] == '401':
             logging.getLogger().error(f"Not authorized to {url}")
