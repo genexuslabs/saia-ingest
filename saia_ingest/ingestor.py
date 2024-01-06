@@ -117,7 +117,11 @@ def ingest_jira(configuration: str) -> bool:
     finally:
         return ret
     
-def ingest_confluence(configuration: str) -> bool:
+def ingest_confluence(
+        configuration: str,
+        timestamp: datetime = None,
+    ) -> bool:
+
     ret = True
     try:
         config = get_yaml_config(configuration)
@@ -139,7 +143,7 @@ def ingest_confluence(configuration: str) -> bool:
         os.environ['CONFLUENCE_PASSWORD'] = conf_token
         os.environ['PINECONE_API_KEY'] = vectorstore_api_key
 
-        loader = ConfluenceReader(base_url=confluence_server_url, cloud=cloud)
+        loader = ConfluenceReader(base_url=confluence_server_url, cloud=cloud, timestamp=timestamp)
 
         documents = []
         for key in space_keys:
