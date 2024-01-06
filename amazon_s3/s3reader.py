@@ -5,10 +5,11 @@ import os
 import logging
 import tempfile
 import boto3
+import json
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Union
-from urllib.parse import quote
+from urllib.parse import quote, unquote
 
 from llama_index import download_loader
 from llama_index.readers.base import BaseReader
@@ -83,6 +84,8 @@ class S3Reader(BaseReader):
 
         self.timestamp = timestamp
 
+        self.s3 = None
+        self.s3_client = None
     def get_files(self) -> [str]:
         """Return a list of documents"""
         skip_count = 0
