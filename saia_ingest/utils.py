@@ -1,4 +1,5 @@
 import os
+import json
 import magic
 import logging
 import yaml
@@ -31,4 +32,24 @@ def detect_file_extension(file_path):
     else:
         logging.getLogger().info(f"{file_path} unknown file type: {file_type}")
         return ""
+
+
+def change_file_extension(file_path, new_extension):
+    base_path, _ = os.path.splitext(file_path)
+    new_file_path = base_path + new_extension
+    return new_file_path
+
+
+def get_metadata_file(file_path, file_name) -> str:
+    # Get the metadata file content
+    ret = None
+    new_file_name = change_file_extension(file_name, '.json')
+    metadata_file = os.path.join(file_path, new_file_name)
+    if os.path.isfile(metadata_file):
+        try:
+            with open(metadata_file, 'r') as json_file:
+                ret = json.load(json_file)
+        except Exception as e:
+            pass
+    return ret
 

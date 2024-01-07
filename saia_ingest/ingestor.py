@@ -11,7 +11,7 @@ from langchain.embeddings.openai import OpenAIEmbeddings
 from langchain.vectorstores import Pinecone
 from langchain.text_splitter import CharacterTextSplitter, RecursiveCharacterTextSplitter
 
-from .utils import get_yaml_config
+from .utils import get_yaml_config, get_metadata_file
 from .vectorstore import initialize_vectorstore_connection, get_vectorstore_index
 # tweaked the implementation locally
 from atlassian_jira.jirareader import JiraReader
@@ -248,6 +248,11 @@ def ingest_s3(
         aws_secret_key = config['s3']['aws_secret_key']
         prefix = config['s3']['prefix'] or None
 
+        use_local_folder = config['s3'].get('use_local_folder', False)
+        local_folder = config['s3'].get('local_folder', None)
+        use_metadata_file = config['s3'].get('use_metadata_file', False)
+        delete_local_folder = config['s3'].get('delete_local_folder', False)
+
         # Saia
         saia_base_url = config['saia'].get('base_url', None)
         saia_api_token = config['saia'].get('api_token', None)
@@ -268,7 +273,10 @@ def ingest_s3(
             prefix=prefix,
             aws_access_id=aws_access_key,
             aws_access_secret=aws_secret_key,
-            timestamp=timestamp
+            timestamp=timestamp,
+            use_local_folder=use_local_folder,
+            local_folder=local_folder,
+            use_metadata_file=use_metadata_file,
             )
     
         if saia_base_url is not None:
@@ -278,11 +286,13 @@ def ingest_s3(
             for file in file_paths:
                 file_path = os.path.dirname(file)
                 file_name = os.path.basename(file)
+
+                metadata_file = get_metadata_file(file_path, file_name) if use_metadata_file else None
                 # TODO: get ID from file_name
                 #file_delete(saia_base_url, saia_api_token, saia_profile, file_name)
-                file_upload(saia_base_url, saia_api_token, saia_profile, file)
+                file_upload(saia_base_url, saia_api_token, saia_profile, file, metadata_file)
             
-            if file_path:
+            if file_path and delete_local_folder:
                 shutil.rmtree(file_path)
             return True
 

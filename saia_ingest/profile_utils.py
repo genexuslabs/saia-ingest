@@ -1,6 +1,7 @@
 import time
 import logging
 import requests
+import json
 
 def is_valid_profile(
         base_url: str,
@@ -42,6 +43,7 @@ def file_upload(
         api_token: str,
         profile: str,
         file_path: str,
+        metadata_file: str = None,
     ) -> bool:
     ret = True
     try:
@@ -51,9 +53,14 @@ def file_upload(
         with open(file_path, "rb") as file:
             file_name = file.name.split("/")[-1]
             files = {"file": (file_name, file, "application/octet-stream")}
+            data = None
+            if metadata_file is not None:
+                #files["metadata"] = (metadata_file, "application/text")
+                data = json.dumps({u"metadata": metadata_file}) 
             response = requests.post(
                 url,
                 files=files,
+                data=data,
                 headers={
                     'Authorization': f'Bearer {api_token}',
                     'filename': file_name

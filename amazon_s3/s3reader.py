@@ -37,6 +37,9 @@ class S3Reader(BaseReader):
         s3_endpoint_url: Optional[str] = "https://s3.amazonaws.com",
         custom_reader_path: Optional[str] = None,
         timestamp: Optional[datetime] = None,
+        use_local_folder: Optional[bool] = None,
+        local_folder: Optional[str] = None,
+        use_metadata_file: Optional[bool] = None,
         **kwargs: Any,
     ) -> None:
         """Initialize S3 bucket and key, along with credentials if needed.
@@ -84,12 +87,59 @@ class S3Reader(BaseReader):
 
         self.timestamp = timestamp
 
+        self.use_local_folder = use_local_folder
+        self.local_folder = local_folder
+        self.use_metadata_file = use_metadata_file
+
         self.s3 = None
         self.s3_client = None
+
+
+    def get_metadata(self, key) -> Any:
+        """Get a File Metadata"""
+        user_metadata = {}
+        try:
+            head_object_response = self.s3.meta.client.head_object(Bucket=self.bucket, Key=key)
+            user_metadata = head_object_response.get('Metadata', user_metadata)
+        except Exception as e:
+            print(f"Error getting metadata for {key}: {e}")
+        return user_metadata
+
+
+    def init_s3(self, force=False) -> None:
+        """Initialize S3 client"""
+        if self.s3 is not None and not force:
+            return
+        self.s3 = boto3.resource("s3")
+        self.s3_client = boto3.client("s3")
+        if self.aws_access_id:
+            self.session = boto3.Session(
+                region_name=self.region_name,                
+                aws_access_key_id=self.aws_access_id,
+                aws_secret_access_key=self.aws_access_secret,
+                aws_session_token=self.aws_session_token,
+            )
+            self.s3 = self.session.resource("s3", region_name=self.region_name)
+            self.s3_client = self.session.client("s3", region_name=self.region_name, endpoint_url=self.s3_endpoint_url)
+
+
+    def write_object_to_file(self, data, file_path):
+        try:
+            with open(file_path, 'w') as file:
+                json.dump(data, file, indent=2)
+        except Exception as e:
+            print(f"Error writing to {file_path}: {e}")
+
+
     def get_files(self) -> [str]:
         """Return a list of documents"""
         skip_count = 0
         count = 0
+        file_paths = []
+
+        if self.use_local_folder:
+            file_paths = [os.path.join(self.local_folder, f) for f in os.listdir(self.local_folder) if os.path.isfile(os.path.join(self.local_folder, f)) and not f.endswith('.json')]
+            return file_paths
 
         s3 = boto3.resource("s3")
         s3_client = boto3.client("s3")
@@ -107,7 +157,6 @@ class S3Reader(BaseReader):
 
         logging.getLogger().info(f"Downloading files from '{self.bucket}' to {temp_dir}")
 
-        file_paths = []
 
         if self.key:
             suffix = Path(self.key).suffix
