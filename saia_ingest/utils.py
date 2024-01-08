@@ -40,7 +40,7 @@ def change_file_extension(file_path, new_extension):
     return new_file_path
 
 
-def get_metadata_file(file_path, file_name) -> str:
+def get_metadata_file(file_path, file_name) -> dict:
     # Get the metadata file content
     ret = None
     new_file_name = change_file_extension(file_name, '.json')

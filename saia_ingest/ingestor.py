@@ -283,14 +283,15 @@ def ingest_s3(
             # Use Saia API to ingest
             file_paths = loader.get_files()
             file_path = None
-            for file in file_paths:
+            for file_item in file_paths:
+                file = os.path.normpath(file_item)
                 file_path = os.path.dirname(file)
                 file_name = os.path.basename(file)
 
                 metadata_file = get_metadata_file(file_path, file_name) if use_metadata_file else None
                 # TODO: get ID from file_name
                 #file_delete(saia_base_url, saia_api_token, saia_profile, file_name)
-                file_upload(saia_base_url, saia_api_token, saia_profile, file, metadata_file)
+                file_upload(saia_base_url, saia_api_token, saia_profile, file, file_name, metadata_file)
             
             if file_path and delete_local_folder:
                 shutil.rmtree(file_path)

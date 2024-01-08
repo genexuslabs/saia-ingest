@@ -43,7 +43,8 @@ def file_upload(
         api_token: str,
         profile: str,
         file_path: str,
-        metadata_file: str = None,
+        file_name: str = None,
+        metadata_file: dict = None,
     ) -> bool:
     ret = True
     try:
@@ -51,12 +52,12 @@ def file_upload(
         logging.getLogger().info(f"using {url}")
         start_time = time.time()
         with open(file_path, "rb") as file:
-            file_name = file.name.split("/")[-1]
+            file_name = file.name.split("/")[-1] if file_name is None else file_name
             files = {"file": (file_name, file, "application/octet-stream")}
             data = None
             if metadata_file is not None:
-                #files["metadata"] = (metadata_file, "application/text")
-                data = json.dumps({u"metadata": metadata_file}) 
+                metadata_json_str = json.dumps(metadata_file)
+                data = {u"metadata": metadata_json_str} 
             response = requests.post(
                 url,
                 files=files,
@@ -73,7 +74,7 @@ def file_upload(
             logging.getLogger().info(f"{response.status_code}: {response.text}")
             ret = False
         else:
-            logging.getLogger().info(f"uploaded {file_name}\n{response_body}\n")
+            logging.getLogger().info(f"uploaded {file_name} as {response_body['name']} id:{response_body['id']}")
         end_time = time.time()
         logging.getLogger().info(f"elapsed time: {end_time - start_time}s")
     except Exception as e:
