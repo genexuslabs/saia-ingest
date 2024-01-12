@@ -17,6 +17,7 @@ from .vectorstore import initialize_vectorstore_connection, get_vectorstore_inde
 from atlassian_jira.jirareader import JiraReader
 from atlassian_confluence.confluencereader import ConfluenceReader
 from amazon_s3.s3reader import S3Reader
+from gdrive.gdrive_reader import GoogleDriveReader
 
 from llama_hub.github_repo import GithubClient, GithubRepositoryReader
 
@@ -321,6 +322,44 @@ def ingest_s3(
         initialize_vectorstore_connection(api_key=api_key, environment=environment)
 
         ret = ingest(documents, index_name, namespace)
+
+    except Exception as e:
+        logging.getLogger().error(f"Error: {e}")
+        ret = False
+    finally:
+        return ret
+
+def ingest_gdrive(
+        configuration: str,
+        timestamp: datetime = None,
+    ) -> bool:
+    ret = True
+    try:
+        config = get_yaml_config(configuration)
+        folder_id = config['googledrive'].get('folder_id', None)
+        file_id = config['googledrive'].get('file_id', None)
+        mime_types = config['googledrive'].get('mime_types', None)
+        cred = config['googledrive'].get('credentials', None)
+        delete_local_folder = config['googledrive'].get('delete_local_folder', False)
+
+        loader = GoogleDriveReader(credentials_path=cred)
+        paths = loader.get_files(folder_id=folder_id, mime_types=mime_types)
+        if paths is not None:
+            for path in paths:
+                logging.getLogger().info(path)
+        '''
+        # Warning: this will load all files locally and directly chunk the data
+        docs = loader.load_data(folder_id=folder_id)
+        if docs is not None:
+            for doc in docs:
+                doc.id_ = doc.metadata["file_name"]
+                logging.getLogger().info(doc.lc_id, doc.metadata)
+        '''
+        if path and delete_local_folder:
+            file_path = os.path.dirname(path)
+            shutil.rmtree(file_path)
+
+        return True
 
     except Exception as e:
         logging.getLogger().error(f"Error: {e}")
