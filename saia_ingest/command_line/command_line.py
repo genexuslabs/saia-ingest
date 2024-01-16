@@ -1,4 +1,5 @@
 import argparse
+import time
 from typing import Any, Optional
 from datetime import datetime, timezone
 import logging
@@ -27,6 +28,7 @@ def handle_ingest(
     assert config is not None
     assert type is not None
 
+    start_time = time.time()
     config_file = config
 
     if timestamp is not None:
@@ -47,6 +49,8 @@ def handle_ingest(
     if ret:
         logging.getLogger().info(f"Successfully {type} ingestion '{timestamp}' config: {config_file}")
     
+    end_time = time.time()
+    logging.getLogger().info(f"time: {end_time - start_time}s")
     file_handler.close()
 
 
