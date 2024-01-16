@@ -1,6 +1,7 @@
 import os
 from datetime import datetime
 import json
+import concurrent.futures
 
 from llama_index import QueryBundle
 from llama_index.retrievers import BaseRetriever
@@ -233,6 +234,22 @@ def ingest_github(configuration: str) -> bool:
     finally:
         return ret
 
+def saia_file_upload(
+        saia_base_url: str,
+        saia_api_token: str,
+        saia_profile: str,
+        file_item: str,
+        use_metadata_file: bool = False,
+    ):
+    ret = True
+
+    file = os.path.normpath(file_item)
+    file_path = os.path.dirname(file)
+    file_name = os.path.basename(file)
+
+    metadata_file = get_metadata_file(file_path, file_name) if use_metadata_file else None
+    file_upload(saia_base_url, saia_api_token, saia_profile, file, file_name, metadata_file)
+
 
 def ingest_s3(
         configuration: str,
@@ -258,6 +275,7 @@ def ingest_s3(
         saia_base_url = config['saia'].get('base_url', None)
         saia_api_token = config['saia'].get('api_token', None)
         saia_profile = config['saia'].get('profile', None)
+        max_parallel_executions = config['saia'].get('max_parallel_executions', 5)
 
         if saia_base_url is not None:
             ret = is_valid_profile(saia_base_url, saia_api_token, saia_profile)
@@ -284,15 +302,10 @@ def ingest_s3(
             # Use Saia API to ingest
             file_paths = loader.get_files()
             file_path = None
-            for file_item in file_paths:
-                file = os.path.normpath(file_item)
-                file_path = os.path.dirname(file)
-                file_name = os.path.basename(file)
 
-                metadata_file = get_metadata_file(file_path, file_name) if use_metadata_file else None
-                # TODO: get ID from file_name
-                #file_delete(saia_base_url, saia_api_token, saia_profile, file_name)
-                file_upload(saia_base_url, saia_api_token, saia_profile, file, file_name, metadata_file)
+            with concurrent.futures.ThreadPoolExecutor(max_workers=max_parallel_executions) as executor:
+                futures = [executor.submit(saia_file_upload, saia_base_url, saia_api_token, saia_profile, file_item, use_metadata_file) for file_item in file_paths]
+                concurrent.futures.wait(futures)
             
             if file_path and delete_local_folder:
                 shutil.rmtree(file_path)
