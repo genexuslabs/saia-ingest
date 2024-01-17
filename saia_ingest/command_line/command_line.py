@@ -50,7 +50,7 @@ def handle_ingest(
         logging.getLogger().info(f"Successfully {type} ingestion '{timestamp}' config: {config_file}")
     
     end_time = time.time()
-    logging.getLogger().info(f"time: {end_time - start_time}s")
+    logging.getLogger().info(f"time: {end_time - start_time:.2f}s")
     file_handler.close()
 
 

@@ -11,7 +11,6 @@ def is_valid_profile(
     ret = True
     try:
         url = f"{base_url}/v1/search/profile/{profile}"
-        logging.getLogger().info(f"using {url}")
         response = requests.get(
             url, 
             headers={
@@ -49,7 +48,6 @@ def file_upload(
     ret = True
     try:
         url = f"{base_url}/v1/search/profile/{profile}/document"
-        logging.getLogger().info(f"using {url}")
         start_time = time.time()
         with open(file_path, "rb") as file:
             file_name = file.name.split("/")[-1] if file_name is None else file_name
@@ -74,9 +72,8 @@ def file_upload(
             logging.getLogger().info(f"{response.status_code}: {response.text}")
             ret = False
         else:
-            logging.getLogger().info(f"uploaded {file_name} as {response_body['name']} id:{response_body['id']}")
-        end_time = time.time()
-        logging.getLogger().info(f"elapsed time: {end_time - start_time}s")
+            end_time = time.time()
+            logging.getLogger().info(f"uploaded {file_name} as {response_body['name']} id:{response_body['id']} {end_time - start_time:.2f}s")
     except Exception as e:
         if e.response['Error']['Code'] == '401':
             logging.getLogger().error(f"Not authorized to {url}")
@@ -99,7 +96,6 @@ def file_delete(
     ret = True
     try:
         url = f"{base_url}/v1/search/profile/{profile}/document/{file_name}"
-        logging.getLogger().info(f"using {url}")
         response = requests.delete(
             url, 
             headers={
