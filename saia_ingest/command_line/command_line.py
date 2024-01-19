@@ -6,6 +6,7 @@ import logging
 from logging.handlers import RotatingFileHandler
 
 from ..ingestor import ingest_s3, ingest_jira, ingest_confluence, ingest_github
+from ..log import AccumulatingLogHandler
 
 logging.basicConfig(level=logging.INFO)
 timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -14,6 +15,7 @@ file_handler = RotatingFileHandler(log_file_name, maxBytes=1024*1024*1024, backu
 formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
 file_handler.setFormatter(formatter)
 logging.getLogger().addHandler(file_handler)
+logging.getLogger().addHandler(AccumulatingLogHandler())
 
 def handle_ingest(
     config: Optional[str] = None,
@@ -35,7 +37,7 @@ def handle_ingest(
         timestamp = datetime.fromisoformat(timestamp).replace(tzinfo=timezone.utc)
 
     if type == "s3":
-        ret = ingest_s3(config_file, timestamp=timestamp)
+        ret = ingest_s3(config_file, start_time, timestamp=timestamp)
     elif type == "jira":
         ret = ingest_jira(config_file)
     elif type == "confluence":
@@ -49,8 +51,6 @@ def handle_ingest(
     if ret:
         logging.getLogger().info(f"Successfully {type} ingestion '{timestamp}' config: {config_file}")
     
-    end_time = time.time()
-    logging.getLogger().info(f"time: {end_time - start_time:.2f}s")
     file_handler.close()
 
 

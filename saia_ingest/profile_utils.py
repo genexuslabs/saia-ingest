@@ -2,6 +2,7 @@ import time
 import logging
 import requests
 import json
+from .log import AccumulatingLogHandler
 
 def is_valid_profile(
         base_url: str,
@@ -86,6 +87,54 @@ def file_upload(
         ret = False
     finally:
         return ret
+
+def operation_log_upload(
+        base_url: str,
+        api_token: str,
+        profile: str,
+        step: str,
+        name: str,
+        level: int = 0,
+    ) -> bool:
+    ret = True
+    try:
+        url = f"{base_url}/v1/search/profile/{profile}/log"
+
+        accumulating_handler = None
+        for handler in logging.getLogger().handlers:
+            if isinstance(handler, AccumulatingLogHandler):
+                accumulating_handler = handler
+                break
+        if not accumulating_handler:
+            logging.getLogger().Warning("AccumulatingLogHandler not found in the root logger's handlers.")
+            return
+
+        data = {
+            "step": step,
+            "level": level,
+            "name": name,
+            "data": accumulating_handler.get_accumulated_logs().__str__()
+        }
+        
+        response = requests.post(
+            url,
+            json=data,
+            headers={
+                'Authorization': f'Bearer {api_token}',
+                'Content-Type': 'application/json',
+            }
+        )
+        response_body = response.json()
+        ret = response.ok
+        if response.status_code != 200:
+            logging.getLogger().info(f"{response.status_code}: {response.text}")
+            ret = False
+    except Exception as e:
+        logging.getLogger().error(f"Could not update operation log {e}")
+        ret = False
+    finally:
+        return ret
+    
 
 def file_delete(
         base_url: str,

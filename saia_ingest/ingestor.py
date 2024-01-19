@@ -1,4 +1,5 @@
 import os
+import time
 from datetime import datetime
 import json
 import concurrent.futures
@@ -24,7 +25,7 @@ from llama_hub.github_repo import GithubClient, GithubRepositoryReader
 
 import logging
 import shutil
-from .profile_utils import is_valid_profile, file_upload, file_delete
+from .profile_utils import is_valid_profile, file_upload, file_delete, operation_log_upload
 
 verbose = False
 
@@ -253,6 +254,7 @@ def saia_file_upload(
 
 def ingest_s3(
         configuration: str,
+        start_time: datetime,
         timestamp: datetime = None,
     ) -> bool:
     ret = True
@@ -309,37 +311,46 @@ def ingest_s3(
             
             if file_path and delete_local_folder:
                 shutil.rmtree(file_path)
-            return True
 
-        ## Fallback to directly ingest to vectorstore
-        documents = loader.load_langchain_documents()
+            upload_operation_log = config['saia'].get('upload_operation_log', False)
+            if upload_operation_log:
+                end_time = time.time()
+                logging.getLogger().info(f"Elapsed time: {end_time - start_time:.2f}s")
+                ret = operation_log_upload(saia_base_url, saia_api_token, saia_profile, "ALL", "bulk ingest", 0)
 
-        save_to_file(documents, prefix='s3')
+        else:
 
-        if verbose:
-            for document in documents:
-                logging.getLogger().info(document.lc_id, document.metadata)
+            ## Fallback to directly ingest to vectorstore
+            documents = loader.load_langchain_documents()
 
-        # Vectorstore
-        api_key = config['vectorstore']['api_key']
-        environment = config['vectorstore']['environment']
-        index_name = config['vectorstore']['index_name']
-        namespace = config['vectorstore']['namespace']
+            save_to_file(documents, prefix='s3')
 
-        doc_count = documents.__len__()
-        if doc_count <= 0:
-            return ret
+            if verbose:
+                for document in documents:
+                    logging.getLogger().info(document.lc_id, document.metadata)
 
-        logging.getLogger().info(f"Vectorizing {doc_count} items to {index_name}/{namespace}")
+            # Vectorstore
+            api_key = config['vectorstore']['api_key']
+            environment = config['vectorstore']['environment']
+            index_name = config['vectorstore']['index_name']
+            namespace = config['vectorstore']['namespace']
 
-        initialize_vectorstore_connection(api_key=api_key, environment=environment)
+            doc_count = documents.__len__()
+            if doc_count <= 0:
+                return ret
 
-        ret = ingest(documents, index_name, namespace)
+            logging.getLogger().info(f"Vectorizing {doc_count} items to {index_name}/{namespace}")
+
+            initialize_vectorstore_connection(api_key=api_key, environment=environment)
+
+            ret = ingest(documents, index_name, namespace)
 
     except Exception as e:
         logging.getLogger().error(f"Error: {e}")
         ret = False
     finally:
+        end_time = time.time()
+        logging.getLogger().info(f"time: {end_time - start_time:.2f}s")
         return ret
 
 def ingest_gdrive(
