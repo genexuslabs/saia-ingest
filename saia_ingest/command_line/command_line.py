@@ -90,7 +90,6 @@ def main() -> None:
 
     # Parse the command-line arguments
     args = parser.parse_args()
-    logging.getLogger().info("parsing arguments...")
 
     # Call the appropriate function based on the command
     args.func(args)

@@ -315,8 +315,8 @@ def ingest_s3(
             upload_operation_log = config['saia'].get('upload_operation_log', False)
             if upload_operation_log:
                 end_time = time.time()
-                logging.getLogger().info(f"Elapsed time: {end_time - start_time:.2f}s")
-                ret = operation_log_upload(saia_base_url, saia_api_token, saia_profile, "ALL", "bulk ingest", 0)
+                message_response = f"bulk ingest ({end_time - start_time:.2f}s)"
+                ret = operation_log_upload(saia_base_url, saia_api_token, saia_profile, "ALL", message_response, 0)
 
         else:
 

@@ -70,11 +70,12 @@ def file_upload(
         # TODO: map the document to the ID and save it
         ret = response.ok
         if response.status_code != 200:
-            logging.getLogger().info(f"{response.status_code}: {response.text}")
+            message_response = f"{response.status_code}: {response.text}"
             ret = False
         else:
             end_time = time.time()
-            logging.getLogger().info(f"uploaded {file_name} as {response_body['name']} id:{response_body['id']} {end_time - start_time:.2f}s")
+            message_response = f"{file_name},{response_body['indexStatus']},{response_body['name']},{response_body['id']},{end_time - start_time:.2f}"
+        logging.getLogger().info(message_response)
     except Exception as e:
         if e.response['Error']['Code'] == '401':
             logging.getLogger().error(f"Not authorized to {url}")
