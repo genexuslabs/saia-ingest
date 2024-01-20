@@ -10,6 +10,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Union
 from urllib.parse import quote, unquote
+from saia_ingest.utils import detect_file_extension
 
 from llama_index import download_loader
 from llama_index.readers.base import BaseReader
@@ -40,6 +41,7 @@ class S3Reader(BaseReader):
         use_local_folder: Optional[bool] = None,
         local_folder: Optional[str] = None,
         use_metadata_file: Optional[bool] = None,
+        process_files: Optional[bool] = False,
         **kwargs: Any,
     ) -> None:
         """Initialize S3 bucket and key, along with credentials if needed.
@@ -88,6 +90,7 @@ class S3Reader(BaseReader):
         self.timestamp = timestamp
 
         self.use_local_folder = use_local_folder
+        self.process_files = process_files
         self.local_folder = local_folder
         self.use_metadata_file = use_metadata_file
 
@@ -102,7 +105,7 @@ class S3Reader(BaseReader):
             head_object_response = self.s3.meta.client.head_object(Bucket=self.bucket, Key=key)
             user_metadata = head_object_response.get('Metadata', user_metadata)
         except Exception as e:
-            print(f"Error getting metadata for {key}: {e}")
+            logging.getLogger().error(f"Error getting metadata for {key}: {e}")
         return user_metadata
 
 
@@ -128,7 +131,7 @@ class S3Reader(BaseReader):
             with open(file_path, 'w') as file:
                 json.dump(data, file, indent=2)
         except Exception as e:
-            print(f"Error writing to {file_path}: {e}")
+            logging.getLogger().error(f"Error writing to {file_path}: {e}")
 
 
     def get_files(self) -> [str]:
@@ -138,6 +141,10 @@ class S3Reader(BaseReader):
         file_paths = []
 
         if self.use_local_folder:
+
+            if self.process_files:
+                self.rename_files(self.local_folder, '.json', None, '.json', self.prefix + '/', 'fileextension')
+
             file_paths = [os.path.join(self.local_folder, f) for f in os.listdir(self.local_folder) if os.path.isfile(os.path.join(self.local_folder, f)) and not f.endswith('.json')]
             return file_paths
 
@@ -324,3 +331,76 @@ class S3Reader(BaseReader):
 
         documents = loader.load_data()
         return documents
+
+    def rename_files(
+            self,
+            folder_path: str,
+            excluded_extension: str,
+            main_extension: str,
+            metadata_extension: str,
+            key_prefix: str,
+            extension_tag: str = 'fileextension'
+        ):
+        '''Process all files in a folder, renaming them and adding metadata files'''
+        if not os.path.exists(folder_path):
+            logging.getLogger().warning(f"The folder '{folder_path}' does not exist.")
+            return
+
+        # Get a list of all files in the folder
+        files = [f for f in os.listdir(folder_path) if os.path.isfile(os.path.join(folder_path, f))]
+
+        # Process each file
+        for file_name_with_extension in files:
+
+            if file_name_with_extension.endswith(excluded_extension):
+                continue
+
+            if main_extension is not None:
+                if not file_name_with_extension.lower().endswith(main_extension):
+                    continue
+
+            file_name, file_extension = os.path.splitext(file_name_with_extension)
+
+            metadata_file_name = file_name + metadata_extension
+
+            extension_from_metadata = None
+
+            get_metadata = False
+            metadata_file_path = os.path.join(folder_path, metadata_file_name)
+            if not os.path.isfile(metadata_file_path):
+                # Get Metadata
+                get_metadata = True
+
+            rename_file = False
+            if file_extension == '':
+                get_metadata = True
+                rename_file = True
+
+            if get_metadata:
+                # Get metadata and rename it
+                s3_file = key_prefix + file_name
+                user_metadata = self.get_metadata(s3_file)
+                extension_from_metadata = user_metadata.get(extension_tag, None)
+                # save metadata as json file
+                self.write_object_to_file(user_metadata, metadata_file_path)
+
+            if rename_file:
+
+                if file_extension is None or file_extension == '':
+                    try:
+                        file_path = os.path.join(folder_path, file_name_with_extension)
+                        if extension_from_metadata is None:
+                            extension_from_metadata = detect_file_extension(file_path)
+                            logging.getLogger().warning(f"File '{file_name_with_extension}' without extension, detected {extension_from_metadata}")
+                            new_file_name = file_name + extension_from_metadata
+                        else:
+                            str_extension = str(extension_from_metadata)
+                            new_file_name = file_name + '.' + str_extension
+
+                        new_path = os.path.join(folder_path, new_file_name)
+                        # Rename the file
+                        os.rename(file_path, new_path)
+                    except Exception as e:
+                        logging.getLogger().error(f"Error renaming file '{file_name}' using extension '{str_extension}'")
+                        continue
+

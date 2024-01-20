@@ -272,6 +272,7 @@ def ingest_s3(
         local_folder = config['s3'].get('local_folder', None)
         use_metadata_file = config['s3'].get('use_metadata_file', False)
         delete_local_folder = config['s3'].get('delete_local_folder', False)
+        process_files = config['s3'].get('process_files', False)
 
         # Saia
         saia_base_url = config['saia'].get('base_url', None)
@@ -298,7 +299,9 @@ def ingest_s3(
             use_local_folder=use_local_folder,
             local_folder=local_folder,
             use_metadata_file=use_metadata_file,
+            process_files=process_files
             )
+        loader.init_s3()
     
         if saia_base_url is not None:
             # Use Saia API to ingest
