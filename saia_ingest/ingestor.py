@@ -299,7 +299,8 @@ def ingest_s3(
             use_local_folder=use_local_folder,
             local_folder=local_folder,
             use_metadata_file=use_metadata_file,
-            process_files=process_files
+            process_files=process_files,
+            max_parallel_executions=max_parallel_executions,
             )
         loader.init_s3()
     
@@ -312,7 +313,8 @@ def ingest_s3(
                 futures = [executor.submit(saia_file_upload, saia_base_url, saia_api_token, saia_profile, file_item, use_metadata_file) for file_item in file_paths]
                 concurrent.futures.wait(futures)
             
-            if file_path and delete_local_folder:
+            if delete_local_folder and len(file_paths) > 0:
+                file_path = os.path.dirname(file_paths[0])
                 shutil.rmtree(file_path)
 
             upload_operation_log = config['saia'].get('upload_operation_log', False)
