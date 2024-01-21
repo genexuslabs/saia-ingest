@@ -6,6 +6,7 @@ import logging
 import tempfile
 import boto3
 import json
+import concurrent.futures
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Union
@@ -42,6 +43,7 @@ class S3Reader(BaseReader):
         local_folder: Optional[str] = None,
         use_metadata_file: Optional[bool] = None,
         process_files: Optional[bool] = False,
+        max_parallel_executions: Optional[int] = 10,
         **kwargs: Any,
     ) -> None:
         """Initialize S3 bucket and key, along with credentials if needed.
@@ -93,6 +95,7 @@ class S3Reader(BaseReader):
         self.process_files = process_files
         self.local_folder = local_folder
         self.use_metadata_file = use_metadata_file
+        self.max_parallel_executions = max_parallel_executions
 
         self.s3 = None
         self.s3_client = None
@@ -221,6 +224,11 @@ class S3Reader(BaseReader):
                         raise e
         
         logging.getLogger().info(f"Skipped: {skip_count} Total: {count}")
+
+        if self.process_files:
+            self.rename_files(temp_dir, '.json', None, '.json', self.prefix + '/', 'fileextension')
+
+        file_paths = [os.path.join(temp_dir, f) for f in os.listdir(temp_dir) if os.path.isfile(os.path.join(temp_dir, f)) and not f.endswith('.json')]
         return file_paths
 
 
@@ -350,57 +358,71 @@ class S3Reader(BaseReader):
         files = [f for f in os.listdir(folder_path) if os.path.isfile(os.path.join(folder_path, f))]
 
         # Process each file
-        for file_name_with_extension in files:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=self.max_parallel_executions) as executor:
+            futures = [executor.submit(self.rename_file, folder_path, excluded_extension, main_extension, metadata_extension, key_prefix, file_item, extension_tag) for file_item in files]
+            concurrent.futures.wait(futures)
 
-            if file_name_with_extension.endswith(excluded_extension):
-                continue
 
-            if main_extension is not None:
-                if not file_name_with_extension.lower().endswith(main_extension):
-                    continue
+    def rename_file(
+            self,
+            folder_path: str,
+            excluded_extension: str,
+            main_extension: str,
+            metadata_extension: str,
+            key_prefix: str,
+            file_name_with_extension: str,
+            extension_tag: str = 'fileextension'
+        ):
 
-            file_name, file_extension = os.path.splitext(file_name_with_extension)
+        if file_name_with_extension.endswith(excluded_extension):
+            return
 
-            metadata_file_name = file_name + metadata_extension
+        if main_extension is not None:
+            if not file_name_with_extension.lower().endswith(main_extension):
+                return
 
-            extension_from_metadata = None
+        file_name, file_extension = os.path.splitext(file_name_with_extension)
 
-            get_metadata = False
-            metadata_file_path = os.path.join(folder_path, metadata_file_name)
-            if not os.path.isfile(metadata_file_path):
-                # Get Metadata
-                get_metadata = True
+        metadata_file_name = file_name + metadata_extension
 
-            rename_file = False
-            if file_extension == '':
-                get_metadata = True
-                rename_file = True
+        extension_from_metadata = None
 
-            if get_metadata:
-                # Get metadata and rename it
-                s3_file = key_prefix + file_name
-                user_metadata = self.get_metadata(s3_file)
-                extension_from_metadata = user_metadata.get(extension_tag, None)
-                # save metadata as json file
+        get_metadata = False
+        metadata_file_path = os.path.join(folder_path, metadata_file_name)
+        if not os.path.isfile(metadata_file_path):
+            # Get Metadata
+            get_metadata = True
+
+        rename_file = False
+        if file_extension == '':
+            get_metadata = True
+            rename_file = True
+
+        if get_metadata:
+            # Get metadata and rename it
+            s3_file = key_prefix + file_name
+            user_metadata = self.get_metadata(s3_file)
+            extension_from_metadata = user_metadata.get(extension_tag, None)
+            if user_metadata:
                 self.write_object_to_file(user_metadata, metadata_file_path)
 
-            if rename_file:
+        if rename_file:
 
-                if file_extension is None or file_extension == '':
-                    try:
-                        file_path = os.path.join(folder_path, file_name_with_extension)
-                        if extension_from_metadata is None:
-                            extension_from_metadata = detect_file_extension(file_path)
-                            logging.getLogger().warning(f"File '{file_name_with_extension}' without extension, detected {extension_from_metadata}")
-                            new_file_name = file_name + extension_from_metadata
-                        else:
-                            str_extension = str(extension_from_metadata)
-                            new_file_name = file_name + '.' + str_extension
+            if file_extension is None or file_extension == '':
+                try:
+                    file_path = os.path.join(folder_path, file_name_with_extension)
+                    if extension_from_metadata is None:
+                        extension_from_metadata = detect_file_extension(file_path)
+                        logging.getLogger().warning(f"File '{file_name_with_extension}' without extension, detected {extension_from_metadata}")
+                        new_file_name = file_name + extension_from_metadata
+                    else:
+                        str_extension = str(extension_from_metadata)
+                        new_file_name = file_name + '.' + str_extension
 
-                        new_path = os.path.join(folder_path, new_file_name)
-                        # Rename the file
-                        os.rename(file_path, new_path)
-                    except Exception as e:
-                        logging.getLogger().error(f"Error renaming file '{file_name}' using extension '{str_extension}'")
-                        continue
+                    new_path = os.path.join(folder_path, new_file_name)
+                    # Rename the file
+                    os.rename(file_path, new_path)
+                except Exception as e:
+                    logging.getLogger().error(f"Error renaming file '{file_name}' using extension '{str_extension}'")
+                    return
 
