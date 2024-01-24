@@ -8,9 +8,9 @@ from llama_index import QueryBundle
 from llama_index.retrievers import BaseRetriever
 from typing import Any, List
 
-from langchain.embeddings import OpenAIEmbeddings
+from langchain_community.embeddings import OpenAIEmbeddings
 from langchain.embeddings.openai import OpenAIEmbeddings
-from langchain.vectorstores import Pinecone
+from langchain_community.vectorstores import Pinecone
 from langchain.text_splitter import CharacterTextSplitter, RecursiveCharacterTextSplitter
 
 from .utils import get_yaml_config, get_metadata_file
@@ -268,6 +268,7 @@ def ingest_s3(
         aws_secret_key = config['s3']['aws_secret_key']
         prefix = config['s3']['prefix'] or None
 
+        required_exts = config['s3'].get('required_exts', None)
         use_local_folder = config['s3'].get('use_local_folder', False)
         local_folder = config['s3'].get('local_folder', None)
         use_metadata_file = config['s3'].get('use_metadata_file', False)
@@ -296,6 +297,7 @@ def ingest_s3(
             aws_access_id=aws_access_key,
             aws_access_secret=aws_secret_key,
             timestamp=timestamp,
+            required_exts=required_exts,
             use_local_folder=use_local_folder,
             local_folder=local_folder,
             use_metadata_file=use_metadata_file,
