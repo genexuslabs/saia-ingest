@@ -148,7 +148,16 @@ class S3Reader(BaseReader):
             if self.process_files:
                 self.rename_files(self.local_folder, '.json', None, '.json', self.prefix + '/', 'fileextension')
 
-            file_paths = [os.path.join(self.local_folder, f) for f in os.listdir(self.local_folder) if os.path.isfile(os.path.join(self.local_folder, f)) and not f.endswith('.json')]
+            for f in os.listdir(self.local_folder):
+                if f.endswith('.json'):
+                    continue
+                if not os.path.isfile(os.path.join(self.local_folder, f)):
+                    continue
+                suffix = Path(f).suffix.lower().replace('.', '')
+                if self.required_exts is not None and suffix not in self.required_exts:
+                    continue
+                file_paths.append(os.path.join(self.local_folder, f))
+
             return file_paths
 
         s3 = boto3.resource("s3")
