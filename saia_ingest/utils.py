@@ -46,10 +46,14 @@ def get_metadata_file(file_path, file_name) -> dict:
     new_file_name = change_file_extension(file_name, '.json')
     metadata_file = os.path.join(file_path, new_file_name)
     if os.path.isfile(metadata_file):
-        try:
-            with open(metadata_file, 'r') as json_file:
-                ret = json.load(json_file)
-        except Exception as e:
-            pass
+        ret = load_json_file(metadata_file)
     return ret
 
+def load_json_file(file_path) -> dict:
+    ret = None
+    try:
+        with open(file_path, 'r', encoding='utf-8') as json_file:
+            ret = json.load(json_file)
+    except Exception as e:
+        pass
+    return ret
