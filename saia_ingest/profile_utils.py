@@ -1,3 +1,4 @@
+import os
 import time
 import logging
 import requests
@@ -141,11 +142,11 @@ def file_delete(
         base_url: str,
         api_token: str,
         profile: str,
-        file_name: str,
+        file_id: str,
     ) -> bool:
     ret = True
     try:
-        url = f"{base_url}/v1/search/profile/{profile}/document/{file_name}"
+        url = f"{base_url}/v1/search/profile/{profile}/document/{file_id}"
         response = requests.delete(
             url, 
             headers={
@@ -168,3 +169,61 @@ def file_delete(
         ret = False
     finally:
         return ret
+
+
+def sync_failed_files(
+        docs: list,
+        local_folder: str
+    ) -> (list[str], list[str]):
+    ret = True
+    to_delete = []
+    to_insert = []
+    try:
+        for f in docs:
+            id = f.get('id', None)
+            name = f.get('name', None)
+            extension = f.get('extension', None)
+            status = f.get('indexStatus', None)
+            if status in ['Unknown', 'Pending']:
+                to_delete.append(id)
+                name_with_extension = f"{name}.{extension}"
+                to_insert.append(os.path.join(local_folder, name_with_extension))
+
+    except Exception as e:
+        logging.getLogger().error(f"Error sync_failed_files: {e}")
+        ret = False
+    finally:
+        logging.getLogger().info(f"To Delete: {len(to_delete)}: To Insert: {len(to_insert)}")
+        return (to_delete, to_insert)
+
+
+def get_documents(
+        base_url: str,
+        api_token: str,
+        profile: str,
+        skip: int = 0,
+        count: int = 999999,
+    ) -> list[str]:
+    ret = True
+    new_list = []
+    try:
+        url = f"{base_url}/v1/search/profile/{profile}/documents?skip={skip}&count={count}"
+        response = requests.get(
+            url, 
+            headers={
+                'Authorization': f'Bearer {api_token}',
+                'Content-Type': 'application/json'
+            })
+        ret = response.ok
+        if response.status_code != 200:
+            logging.getLogger().error(f"{response.status_code}: {response.text}")
+            ret = False
+        # clean wrong files, get a list to reprocess...
+        document_result = response.json()
+        new_list = list(document_result['documents'])
+    except Exception as e:
+        logging.getLogger().error(f"Error getting documents {e}")
+        ret = False
+    finally:
+        return new_list
+
