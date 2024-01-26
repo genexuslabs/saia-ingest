@@ -13,7 +13,7 @@ from langchain.embeddings.openai import OpenAIEmbeddings
 from langchain_community.vectorstores import Pinecone
 from langchain.text_splitter import CharacterTextSplitter, RecursiveCharacterTextSplitter
 
-from .utils import get_yaml_config, get_metadata_file
+from .utils import get_yaml_config, get_metadata_file, load_json_file
 from .vectorstore import initialize_vectorstore_connection, get_vectorstore_index
 # tweaked the implementation locally
 from atlassian_jira.jirareader import JiraReader
@@ -25,7 +25,7 @@ from llama_hub.github_repo import GithubClient, GithubRepositoryReader
 
 import logging
 import shutil
-from .profile_utils import is_valid_profile, file_upload, file_delete, operation_log_upload
+from .profile_utils import is_valid_profile, file_upload, file_delete, operation_log_upload, sync_failed_files
 
 verbose = False
 
@@ -274,6 +274,7 @@ def ingest_s3(
         use_metadata_file = config['s3'].get('use_metadata_file', False)
         delete_local_folder = config['s3'].get('delete_local_folder', False)
         process_files = config['s3'].get('process_files', False)
+        reprocess_failed_files = config['s3'].get('reprocess_failed_files', False)
 
         # Saia
         saia_base_url = config['saia'].get('base_url', None)
@@ -308,7 +309,18 @@ def ingest_s3(
     
         if saia_base_url is not None:
             # Use Saia API to ingest
-            file_paths = loader.get_files()
+
+            if reprocess_failed_files:
+                # Clean files with failed state, re upload
+                local_file = config['s3'].get('reprocess_failed_files_file', None)
+                docs = load_json_file(local_file)
+                to_delete, file_paths = sync_failed_files(docs['documents'], local_folder)
+
+                with concurrent.futures.ThreadPoolExecutor(max_workers=max_parallel_executions) as executor:
+                    futures = [executor.submit(file_delete, saia_base_url, saia_api_token, saia_profile, d) for d in to_delete]
+                    concurrent.futures.wait(futures)
+            else:
+                file_paths = loader.get_files()
             file_path = None
 
             with concurrent.futures.ThreadPoolExecutor(max_workers=max_parallel_executions) as executor:
