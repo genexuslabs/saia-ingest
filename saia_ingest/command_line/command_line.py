@@ -1,3 +1,4 @@
+import os
 import argparse
 import time
 from typing import Any, Optional
@@ -11,6 +12,9 @@ from ..log import AccumulatingLogHandler
 logging.basicConfig(level=logging.INFO)
 timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
 log_file_name = f"debug/run_{timestamp}.txt"
+log_dir = os.path.dirname(log_file_name)
+if not os.path.isdir(log_dir):
+    os.mkdir(log_dir)
 file_handler = RotatingFileHandler(log_file_name, maxBytes=1024*1024*1024, backupCount=50)
 formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
 file_handler.setFormatter(formatter)
