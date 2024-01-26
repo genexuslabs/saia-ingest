@@ -275,6 +275,7 @@ def ingest_s3(
         delete_local_folder = config['s3'].get('delete_local_folder', False)
         process_files = config['s3'].get('process_files', False)
         reprocess_failed_files = config['s3'].get('reprocess_failed_files', False)
+        reprocess_valid_status_list = config['s3'].get('reprocess_valid_status_list', [])
 
         # Saia
         saia_base_url = config['saia'].get('base_url', None)
@@ -314,7 +315,7 @@ def ingest_s3(
                 # Clean files with failed state, re upload
                 local_file = config['s3'].get('reprocess_failed_files_file', None)
                 docs = load_json_file(local_file)
-                to_delete, file_paths = sync_failed_files(docs['documents'], local_folder)
+                to_delete, file_paths = sync_failed_files(docs['documents'], local_folder, reprocess_valid_status_list)
 
                 with concurrent.futures.ThreadPoolExecutor(max_workers=max_parallel_executions) as executor:
                     futures = [executor.submit(file_delete, saia_base_url, saia_api_token, saia_profile, d) for d in to_delete]

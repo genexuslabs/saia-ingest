@@ -173,7 +173,8 @@ def file_delete(
 
 def sync_failed_files(
         docs: list,
-        local_folder: str
+        local_folder: str,
+        reprocess_valid_status_list: list = [],
     ) -> (list[str], list[str]):
     ret = True
     to_delete = []
@@ -184,7 +185,7 @@ def sync_failed_files(
             name = f.get('name', None)
             extension = f.get('extension', None)
             status = f.get('indexStatus', None)
-            if status in ['Unknown', 'Pending']:
+            if status in reprocess_valid_status_list:
                 to_delete.append(id)
                 name_with_extension = f"{name}.{extension}"
                 to_insert.append(os.path.join(local_folder, name_with_extension))
