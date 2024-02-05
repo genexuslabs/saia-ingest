@@ -179,9 +179,11 @@ class S3Reader(BaseReader):
 
         if self.key:
             suffix = Path(self.key).suffix
-            filepath = f"{temp_dir}/{next(tempfile._get_candidate_names())}{suffix}"
-            s3_client.download_file(self.bucket, self.key, filepath)
+            filepath = f"{temp_dir}/{self.key}"
+            original_key = f"{self.prefix}/{self.key}" if self.prefix else self.key
+            s3.meta.client.download_file(self.bucket, original_key, filepath)
             file_paths.append(filepath)
+            logging.getLogger().info(f" {original_key} to {self.key}")
         else:
             bucket = s3.Bucket(self.bucket)
             for i, obj in enumerate(bucket.objects.filter(Prefix=self.prefix)):
