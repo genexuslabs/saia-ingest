@@ -260,13 +260,13 @@ def ingest_s3(
     ret = True
     try:
         config = get_yaml_config(configuration)
-        url = config['s3']['url']
-        region = config['s3']['region']
-        bucket = config['s3']['bucket']
-        key = config['s3']['key']
-        aws_access_key = config['s3']['aws_access_key']
-        aws_secret_key = config['s3']['aws_secret_key']
-        prefix = config['s3']['prefix'] or None
+        url = config['s3'].get('url', None)
+        region = config['s3'].get('region', None)
+        bucket = config['s3'].get('bucket', None)
+        key = config['s3'].get('key', None)
+        aws_access_key = config['s3'].get('aws_access_key', None)
+        aws_secret_key = config['s3'].get('aws_secret_key', None)
+        prefix = config['s3'].get('prefix', None)
 
         required_exts = config['s3'].get('required_exts', None)
         use_local_folder = config['s3'].get('use_local_folder', False)
