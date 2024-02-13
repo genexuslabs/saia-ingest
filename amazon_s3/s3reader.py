@@ -39,9 +39,10 @@ class S3Reader(BaseReader):
         s3_endpoint_url: Optional[str] = "https://s3.amazonaws.com",
         custom_reader_path: Optional[str] = None,
         timestamp: Optional[datetime] = None,
-        use_local_folder: Optional[bool] = None,
+        use_local_folder: Optional[bool] = False,
         local_folder: Optional[str] = None,
-        use_metadata_file: Optional[bool] = None,
+        use_metadata_file: Optional[bool] = False,
+        use_augment_metadata: Optional[bool] = False,
         process_files: Optional[bool] = False,
         max_parallel_executions: Optional[int] = 10,
         **kwargs: Any,
@@ -95,6 +96,7 @@ class S3Reader(BaseReader):
         self.process_files = process_files
         self.local_folder = local_folder
         self.use_metadata_file = use_metadata_file
+        self.use_augment_metadata = use_augment_metadata
         self.max_parallel_executions = max_parallel_executions
 
         self.s3 = None
@@ -131,8 +133,8 @@ class S3Reader(BaseReader):
 
     def write_object_to_file(self, data, file_path):
         try:
-            with open(file_path, 'w') as file:
-                json.dump(data, file, indent=2)
+            with open(file_path, 'w') as file: # encoding='utf-8-sig'
+                json.dump(data, file, indent=2, ensure_ascii=False)
         except Exception as e:
             logging.getLogger().error(f"Error writing to {file_path}: {e}")
 
@@ -368,9 +370,10 @@ class S3Reader(BaseReader):
         # Get a list of all files in the folder
         files = [f for f in os.listdir(folder_path) if os.path.isfile(os.path.join(folder_path, f))]
 
+        timestamp_tag = 'publishdate'
         # Process each file
         with concurrent.futures.ThreadPoolExecutor(max_workers=self.max_parallel_executions) as executor:
-            futures = [executor.submit(self.rename_file, folder_path, excluded_extension, main_extension, metadata_extension, key_prefix, file_item, extension_tag) for file_item in files]
+            futures = [executor.submit(self.rename_file, folder_path, excluded_extension, main_extension, metadata_extension, key_prefix, file_item, timestamp_tag, extension_tag) for file_item in files]
             concurrent.futures.wait(futures)
 
 
@@ -382,6 +385,7 @@ class S3Reader(BaseReader):
             metadata_extension: str,
             key_prefix: str,
             file_name_with_extension: str,
+            timestamp_tag: str = 'publishdate',
             extension_tag: str = 'fileextension'
         ):
 
@@ -412,7 +416,9 @@ class S3Reader(BaseReader):
         if get_metadata:
             # Get metadata and rename it
             s3_file = key_prefix + file_name
-            user_metadata = self.get_metadata(s3_file)
+            initial_metadata = self.get_metadata(s3_file)
+            if self.use_augment_metadata:
+                user_metadata = self.augment_metadata(initial_metadata, timestamp_tag)
             extension_from_metadata = user_metadata.get(extension_tag, None)
             if user_metadata:
                 self.write_object_to_file(user_metadata, metadata_file_path)
@@ -437,3 +443,30 @@ class S3Reader(BaseReader):
                     logging.getLogger().error(f"Error renaming file '{file_name}' using extension '{str_extension}'")
                     return
 
+
+    def augment_metadata(
+            self,
+            initial_metadata: dict,
+            timestamp_tag: str = 'publishdate',
+        ) -> dict:
+        '''Preprocess and add metadata'''
+
+        id = initial_metadata.get('documentid', '')
+        name = initial_metadata.get('filename', id)
+        activity = initial_metadata.get('disclosureactivity', '')
+        date_string = initial_metadata.get(timestamp_tag, '')
+
+        if date_string is not None:
+            # Change from MM/DD/YYYY to YYYYMMDD format
+            date_object = datetime.strptime(date_string, "%m/%d/%Y")
+            formatted_date = date_object.strftime("%Y%m%d")
+            year = date_object.strftime("%Y")
+            # Add year
+            initial_metadata[timestamp_tag] = formatted_date
+            initial_metadata['year'] = year
+
+        description = f"{name} | {date_string} | {activity}"
+
+        initial_metadata['description'] = description
+
+        return initial_metadata

@@ -272,6 +272,7 @@ def ingest_s3(
         use_local_folder = config['s3'].get('use_local_folder', False)
         local_folder = config['s3'].get('local_folder', None)
         use_metadata_file = config['s3'].get('use_metadata_file', False)
+        use_augment_metadata = config['s3'].get('use_augment_metadata', False)
         delete_local_folder = config['s3'].get('delete_local_folder', False)
         process_files = config['s3'].get('process_files', False)
         reprocess_failed_files = config['s3'].get('reprocess_failed_files', False)
@@ -303,6 +304,7 @@ def ingest_s3(
             use_local_folder=use_local_folder,
             local_folder=local_folder,
             use_metadata_file=use_metadata_file,
+            use_augment_metadata=use_augment_metadata,
             process_files=process_files,
             max_parallel_executions=max_parallel_executions,
             )
