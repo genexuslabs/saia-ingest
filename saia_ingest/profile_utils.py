@@ -185,6 +185,11 @@ def sync_failed_files(
             name = f.get('name', None)
             extension = f.get('extension', None)
             status = f.get('indexStatus', None)
+            status_detail = f.get('indexDetail', '')
+
+            if status_detail == 'Invalid content':
+                continue
+
             if status in reprocess_valid_status_list:
                 to_delete.append(id)
                 name_with_extension = f"{name}.{extension}"
