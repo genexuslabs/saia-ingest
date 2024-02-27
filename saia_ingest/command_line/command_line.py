@@ -2,7 +2,7 @@ import os
 import argparse
 import time
 from typing import Any, Optional
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 import logging
 from logging.handlers import RotatingFileHandler
 
@@ -24,6 +24,7 @@ logging.getLogger().addHandler(AccumulatingLogHandler())
 def handle_ingest(
     config: Optional[str] = None,
     timestamp: Optional[str] = None,
+    days: Optional[int] = None,
     type: str = "test",
     **kwargs: Any,
 ) -> None:
@@ -37,7 +38,9 @@ def handle_ingest(
     start_time = time.time()
     config_file = config
 
-    if timestamp is not None:
+    if days is not None and days > 0:
+        timestamp = datetime.now(timezone.utc) - timedelta(days=days)
+    elif timestamp is not None:
         timestamp = datetime.fromisoformat(timestamp).replace(tzinfo=timezone.utc)
 
     if type == "s3":
@@ -81,6 +84,13 @@ def main() -> None:
         type=str,
         default=None,
         help="Custom timestamp.",
+    )
+    saia_parser.add_argument(
+        "-d",
+        "--days",
+        type=int,
+        default=0,
+        help="Last X days to consider as timestamp (examples: 7=last week, 1=yesterday).",
     )
     saia_parser.add_argument(
         "--type",
