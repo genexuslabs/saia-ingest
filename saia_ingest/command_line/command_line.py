@@ -56,7 +56,8 @@ def handle_ingest(
         return False
 
     if ret:
-        logging.getLogger().info(f"Successfully {type} ingestion '{timestamp}' config: {config_file}")
+        formatted_timestamp = timestamp.strftime("%Y-%m-%d %H:%M")
+        logging.getLogger().info(f"Successfully {type} ingestion '{formatted_timestamp}' config: {config_file}")
     
     file_handler.close()
 
