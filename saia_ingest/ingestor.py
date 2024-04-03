@@ -103,6 +103,10 @@ def ingest_jira(configuration: str) -> bool:
 
         lc_documents = all_documents
 
+        if len(lc_documents) <= 0:
+            logging.getLogger().warn('No documents found')
+            return ret
+
         save_to_file(lc_documents, prefix='jira')
 
         # Vectorstore
