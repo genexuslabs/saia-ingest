@@ -2,9 +2,10 @@
 
 To install the package and its dependencies, follow these steps:
 
-1. Create a new virtual environment and activate it:
+1. Create a new virtual environment and activate it, for this case called `venv`:
 
    ```bash
+   # Ubuntu
    sudo apt install python3-venv
    python3 -m venv venv
    source venv/bin/activate
@@ -42,7 +43,7 @@ echo "export OPENAI_API_KEY=X" >> ~/.bashrc
 
 ### YAML
 
-Make sure to set the correct `yaml` configuration file under the config folder.
+Make sure to set the correct `yaml` configuration file under the `config` folder. If it does not exists, create a `config` folder under the repository. All command will use configuration files from that folder by default. 
 
 Run the associated operation using the `saia-cli` entry point, supported the `ingest` verb only.
 
@@ -56,11 +57,7 @@ saia-cli ingest -c ./config/s3_ls.yaml --type test
 
 ## Run Tests
 
-> Pytest is required in order to execute the tests. To install it, execute the following line:
->
-> ```bash
-> pip install pytest
-> ```
+ToDo add tests, so far a dummy one just to check the mechanism is working.
 
 ```python
 pytest tests/test_api.py
