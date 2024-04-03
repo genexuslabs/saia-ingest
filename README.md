@@ -62,3 +62,7 @@ ToDo add tests, so far a dummy one just to check the mechanism is working.
 ```python
 pytest tests/test_api.py
 ```
+
+## License
+
+check [here](LICENSE).
