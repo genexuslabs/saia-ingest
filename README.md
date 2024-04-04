@@ -55,6 +55,17 @@ saia-cli ingest -c ./config/s3_ls.yaml -t 2023-12-21
 saia-cli ingest -c ./config/s3_ls.yaml --type test
 ```
 
+The configuration file details all parameters needed to run the ingestion, use the `--type` to decide the target ingestion; supported values are:
+
+ * `s3` (ToDo doc)
+ * `jira` [config](./atlassian_jira/jira_config.md)
+ * `confluence` (ToDo doc)
+ * `github` (ToDo doc)
+
+### Logging
+
+Check the `debug` folder, where every execution is logged.
+
 ## Run Tests
 
 ToDo add tests, so far a dummy one just to check the mechanism is working.
