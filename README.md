@@ -74,6 +74,10 @@ ToDo add tests, so far a dummy one just to check the mechanism is working.
 pytest tests/test_api.py
 ```
 
+## Contribution
+
+check [here](CONTRIBUTION.md).
+
 ## License
 
 check [here](LICENSE).
