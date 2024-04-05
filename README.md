@@ -48,16 +48,16 @@ Make sure to set the correct `yaml` configuration file under the `config` folder
 Run the associated operation using the `saia-cli` entry point, supported the `ingest` verb only.
 
 ```bash
-saia-cli ingest -c ./config/s3_ls.yaml
+saia-cli ingest -c ./config/s3_sandbox.yaml
 # using a timestamp
-saia-cli ingest -c ./config/s3_ls.yaml -t 2023-12-21
+saia-cli ingest -c ./config/s3_sandbox.yaml -t 2023-12-21
 # using a type
-saia-cli ingest -c ./config/s3_ls.yaml --type test
+saia-cli ingest -c ./config/s3_sandbox.yaml --type test
 ```
 
 The configuration file details all parameters needed to run the ingestion, use the `--type` to decide the target ingestion; supported values are:
 
- * `s3` (ToDo doc)
+ * `s3` [config](./amazon_s3/s3_config.md)
  * `jira` [config](./atlassian_jira/jira_config.md)
  * `confluence` (ToDo doc)
  * `github` (ToDo doc)
