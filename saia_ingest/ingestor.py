@@ -34,14 +34,14 @@ def split_documents(documents, chunk_size=1000, chunk_overlap=100):
     lc_documents = text_splitter.split_documents(documents)
     return lc_documents
 
-def load_documents(loader, space_key='', include_attachments=False, include_children=False):
-    documents = loader.load_langchain_documents(space_key=space_key, include_attachments=include_attachments, include_children=include_children)
+def load_documents(loader, space_key='', page_ids=None, include_attachments=False, include_children=False):
+    documents = loader.load_langchain_documents(space_key=space_key, page_ids=page_ids, include_attachments=include_attachments, include_children=include_children)
     return documents
 
-def ingest(lc_documents, index_name, namespace):
+def ingest(lc_documents, api_key, index_name, namespace, model="text-embedding-ada-002"):
     # https://python.langchain.com/docs/integrations/vectorstores/pinecone
 
-    embeddings = OpenAIEmbeddings()
+    embeddings = OpenAIEmbeddings(model=model)
     vectorstore = Pinecone.from_documents(documents=lc_documents, embedding=embeddings, index_name=index_name, namespace=namespace)
 
 def create_folder(path):
@@ -80,6 +80,7 @@ def ingest_jira(configuration: str) -> bool:
         api_token = config['jira']['api_token']
         jira_server_url = config['jira']['server_url']
         query = config['jira']['query']
+        embeddings_model = config['embeddings'].get('model', 'text-embedding-ada-002')
 
         # Reader
         reader = JiraReader(email=email, api_token=api_token, server_url=jira_server_url)
@@ -132,18 +133,20 @@ def ingest_confluence(
     ret = True
     try:
         config = get_yaml_config(configuration)
-        user_name = config['confluence']['email']
-        conf_token = config['confluence']['api_token']
-        confluence_server_url = config['confluence']['server_url']
-        space_keys = config['confluence']['spaces']
-        include_attachments = config['confluence']['include_attachments']
-        include_children = config['confluence']['include_children']
-        cloud = config['confluence']['cloud']
-        confluence_namespace = config['confluence']['namespace']
-        openapi_key = config['embeddings']['openapi_key']
-        chunk_size = config['embeddings']['chunk_size']
-        chunk_overlap = config['embeddings']['chunk_overlap']
-        vectorstore_api_key = config['vectorstore']['api_key']
+        user_name = config['confluence'].get('email', None)
+        conf_token = config['confluence'].get('api_token', None)
+        confluence_server_url = config['confluence'].get('server_url', None)
+        space_keys = config['confluence'].get('spaces', None)
+        page_ids = config['confluence'].get('page_ids', None)
+        include_attachments = config['confluence'].get('include_attachments', None)
+        include_children = config['confluence'].get('include_children', None)
+        cloud = config['confluence'].get('cloud', None)
+        confluence_namespace = config['confluence'].get('namespace', None)
+        openapi_key = config['embeddings'].get('openapi_key', None)
+        chunk_size = config['embeddings'].get('chunk_size', None)
+        chunk_overlap = config['embeddings'].get('chunk_overlap', None)
+        vectorstore_api_key = config['vectorstore'].get('api_key', None)
+        embeddings_model = config['embeddings'].get('model', 'text-embedding-ada-002')
 
         os.environ['OPENAI_API_KEY'] = openapi_key
         os.environ['CONFLUENCE_USERNAME'] = user_name
@@ -153,15 +156,24 @@ def ingest_confluence(
         loader = ConfluenceReader(base_url=confluence_server_url, cloud=cloud, timestamp=timestamp)
 
         documents = []
-        for key in space_keys:
-            try:
-                space_documents = load_documents(loader, space_key=key, include_attachments=include_attachments, include_children=include_children)
-                for item in space_documents:
-                    documents.append(item)
-                logging.getLogger().info(f"space {key} documents {space_documents.__len__()}")
-            except Exception as e:
-                logging.getLogger().error(f"Error processing {key}: {e}")
-                continue
+
+        if page_ids is not None:
+                try:
+                    list_documents = load_documents(loader, page_ids=page_ids, include_attachments=include_attachments, include_children=include_children)
+                    for item in list_documents:
+                        documents.append(item)
+                except Exception as e:
+                    print(f"Error processing {page_ids}: {e}")
+        elif space_keys is not None:
+            for key in space_keys:
+                try:
+                    space_documents = load_documents(loader, space_key=key, include_attachments=include_attachments, include_children=include_children)
+                    for item in space_documents:
+                        documents.append(item)
+                    logging.getLogger().info(f"space {key} documents {space_documents.__len__()}")
+                except Exception as e:
+                    logging.getLogger().error(f"Error processing {key}: {e}")
+                    continue
 
         lc_documents = split_documents(documents, chunk_size=chunk_size, chunk_overlap=chunk_overlap)
 
@@ -174,7 +186,7 @@ def ingest_confluence(
 
         logging.getLogger().info(f"Documents {documents.__len__()} Chunks {lc_documents.__len__()}")
 
-        ingest(lc_documents, index_name, confluence_namespace)
+        ingest(lc_documents, "", index_name, confluence_namespace, embeddings_model)
 
     except Exception as e:
         logging.getLogger().error(f"Error: {e}")
@@ -203,6 +215,7 @@ def ingest_github(configuration: str) -> bool:
 
         chunk_size = config['embeddings']['chunk_size']
         chunk_overlap = config['embeddings']['chunk_overlap']
+        embeddings_model = config['embeddings'].get('model', 'text-embedding-ada-002')
 
         vectorstore_api_key = config['vectorstore']['api_key']
         environment = config['vectorstore']['environment']
@@ -231,7 +244,7 @@ def ingest_github(configuration: str) -> bool:
 
         initialize_vectorstore_connection(api_key=vectorstore_api_key, environment=environment)
 
-        ingest(lc_documents, index_name, namespace)
+        ingest(lc_documents, index_name, namespace, embeddings_model)
 
     except Exception as e:
         logging.getLogger().error(f"Error: {e}")
@@ -271,7 +284,7 @@ def ingest_s3(
         aws_access_key = config['s3'].get('aws_access_key', None)
         aws_secret_key = config['s3'].get('aws_secret_key', None)
         prefix = config['s3'].get('prefix', None)
-
+        embeddings_model = config['embeddings'].get('model', 'text-embedding-ada-002')
         required_exts = config['s3'].get('required_exts', None)
         use_local_folder = config['s3'].get('use_local_folder', False)
         local_folder = config['s3'].get('local_folder', None)
