@@ -2,6 +2,7 @@
 import logging
 import os
 import re
+from datetime import datetime
 from typing import Dict, List, Optional
 
 from llama_index.readers.base import BaseReader
@@ -48,12 +49,16 @@ class ConfluenceReader(BaseReader):
     """
 
     def __init__(
-        self, base_url: str = None, oauth2: Optional[Dict] = None, cloud: bool = True
+        self, base_url: str = None,
+        oauth2: Optional[Dict] = None,
+        cloud: bool = True,
+        timestamp: Optional[datetime] = None
     ) -> None:
         if base_url is None:
             raise ValueError("Must provide `base_url`")
 
         self.base_url = base_url
+        self.timestamp = timestamp
 
         try:
             from atlassian import Confluence
@@ -319,7 +324,7 @@ class ConfluenceReader(BaseReader):
 
         type = page["type"]
         complete_content = f"{title}\n{text}\ntype: {type}\nspace: {space_key}"
-        processed_content = preprocess_text(complete_content)
+        processed_content = preprocess_text(complete_content, remove_all_new_lines=False)
         id = page["id"]
         url = self.base_url + page["_links"]["tinyui"]
 
@@ -352,8 +357,16 @@ class ConfluenceReader(BaseReader):
         for pattern in patterns:
             text = re.sub(pattern, '', text)
         
-        return text
+        return self.replace_code_macro(text)
 
+    def replace_match(self, match):
+        return "```" + match.group(1) + "```"
+
+    def replace_code_macro(self, text: str):
+        # Replace Code sections from tags, otherwise are removed
+        regex = r'<ac:structured-macro[^>]*><ac:plain-text-body><!\[CDATA\[(.*?)\]\]>'
+        new_text = re.sub(regex, self.replace_match, text)
+        return new_text
 
     def process_attachment(self, page_id):
         try:
