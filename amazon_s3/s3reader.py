@@ -103,6 +103,18 @@ class S3Reader(BaseReader):
         self.s3_client = None
 
 
+    def get_versions(self, key) -> Any:
+        response = self.s3_client.list_object_versions(Bucket=self.bucket, Prefix=key)
+        versions = response.get('Versions', [])
+        if versions:
+            for version in versions:
+                version_id = version['VersionId']
+                is_current = version['IsLatest']
+                last_modified = version['LastModified']
+                print(f"Version ID: {version_id}, Is Current: {is_current}, Last Modified: {last_modified}")
+        return versions
+
+
     def get_metadata(self, key) -> Any:
         """Get a File Metadata"""
         user_metadata = {}
@@ -248,86 +260,7 @@ class S3Reader(BaseReader):
     def load_data(self) -> List[Document]:
         """Load file(s) from S3."""
         
-        file_paths = self.get_files()
-        """
-        skip_count = 0
-        count = 0
-
-        s3 = boto3.resource("s3")
-        s3_client = boto3.client("s3")
-        if self.aws_access_id:
-            session = boto3.Session(
-                region_name=self.region_name,                
-                aws_access_key_id=self.aws_access_id,
-                aws_secret_access_key=self.aws_access_secret,
-                aws_session_token=self.aws_session_token,
-            )
-            s3 = session.resource("s3", region_name=self.region_name)
-            s3_client = session.client("s3", region_name=self.region_name, endpoint_url=self.s3_endpoint_url)
-
-        with tempfile.TemporaryDirectory() as temp_dir:
-            logging.getLogger().info(f"Downloading files from '{self.bucket}' to {temp_dir}")
-
-            file_paths = []
-
-            if self.key:
-                suffix = Path(self.key).suffix
-                filepath = f"{temp_dir}/{next(tempfile._get_candidate_names())}{suffix}"
-                s3_client.download_file(self.bucket, self.key, filepath)
-                file_paths.append(filepath)
-            else:
-                bucket = s3.Bucket(self.bucket)
-                for i, obj in enumerate(bucket.objects.filter(Prefix=self.prefix)):
-                    if self.num_files_limit is not None and i > self.num_files_limit:
-                        break
-
-                    suffix = Path(obj.key).suffix
-
-                    is_dir = obj.key.endswith("/")  # skip folders
-                    is_bad_ext = (
-                        self.required_exts is not None
-                        and suffix not in self.required_exts  # skip other extentions
-                    )
-
-                    if is_dir or is_bad_ext:
-                        continue
-
-                    count += 1
-                    temp_name = next(tempfile._get_candidate_names())
-
-                    filepath = (
-                        f"{temp_dir}/{temp_name}{suffix}"
-                    )
-
-                    if not os.path.exists(temp_dir):
-                        os.makedirs(temp_dir)
-
-                    original_key = obj.key
-                    encoded_key = quote(original_key)
-
-                    skip_file = False
-                    if self.timestamp is not None and self.timestamp > obj.last_modified:
-                        skip_file = True
-                        skip_count += 1
-                    if skip_file:
-                        continue
-
-                    try:
-                        # https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/s3/client/download_file.html#S3.Client.download_file
-                        s3.meta.client.download_file(self.bucket, original_key, filepath)
-                        file_paths.append(filepath)
-                        logging.getLogger().info(f" {obj.key} to {temp_name}")
-                    except Exception as e:
-                        if e.response['Error']['Code'] == '404':
-                            logging.getLogger().info(f"The object '{obj.key}' does not exist.")
-                        elif e.response['Error']['Code'] == '403':
-                            logging.getLogger().info(f"Forbidden access to '{obj.key}'")
-                        else:
-                            raise e
-            
-            logging.getLogger().info(f"Skipped: {skip_count} Total: {count}")
-        """
-            
+        file_paths = self.get_files()            
         temp_dir = os.path.dirname(file_paths[0]) if len(file_paths) > 0 else None
         try:
             from llama_index import SimpleDirectoryReader
