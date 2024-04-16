@@ -1,9 +1,8 @@
 import re
 
-punctuation = '!"#$%&\'()*+<=>[\\]^_`{|}~'
+punctuation = '!"#$%&\'()*+<=>[\\]^_{|}~'
 
-
-def preprocess_text(text: str, remove_punctuation=True) -> str:
+def preprocess_text(text: str, remove_punctuation=True, remove_all_new_lines=True) -> str:
     if not text:
         return ""
 
@@ -24,6 +23,8 @@ def preprocess_text(text: str, remove_punctuation=True) -> str:
 
     # remove newlines
     text = re.sub(r'\n+', '\n', text)
+    if remove_all_new_lines:
+        text = re.sub(r'\n', ' ', text)
 
     # clean up the spacing
     text = re.sub('\s{2,}', " ", text)
