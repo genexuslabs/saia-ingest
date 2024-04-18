@@ -1,6 +1,6 @@
 import re
 
-punctuation = '!"#$%&\'()*+<=>[\\]^_{|}~'
+punctuation = '!"#$%&\'()*+<=>[]^_{}~'
 
 def preprocess_text(text: str, remove_punctuation=True, remove_all_new_lines=True) -> str:
     if not text:
