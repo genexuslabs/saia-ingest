@@ -8,13 +8,11 @@ from llama_index import QueryBundle
 from llama_index.retrievers import BaseRetriever
 from typing import Any, List
 
-from langchain_community.embeddings import OpenAIEmbeddings
-from langchain.embeddings.openai import OpenAIEmbeddings
+from langchain_openai import OpenAIEmbeddings
 from langchain_community.vectorstores import Pinecone
 from langchain.text_splitter import CharacterTextSplitter, RecursiveCharacterTextSplitter
 
 from .utils import get_yaml_config, get_metadata_file, load_json_file
-from .vectorstore import initialize_vectorstore_connection, get_vectorstore_index
 # tweaked the implementation locally
 from atlassian_jira.jirareader import JiraReader
 from atlassian_confluence.confluencereader import ConfluenceReader
@@ -41,7 +39,7 @@ def load_documents(loader, space_key='', page_ids=None, include_attachments=Fals
 def ingest(lc_documents, api_key, index_name, namespace, model="text-embedding-ada-002"):
     # https://python.langchain.com/docs/integrations/vectorstores/pinecone
 
-    embeddings = OpenAIEmbeddings(model=model)
+    embeddings = OpenAIEmbeddings(api_key=api_key, model=model)
     vectorstore = Pinecone.from_documents(documents=lc_documents, embedding=embeddings, index_name=index_name, namespace=namespace)
 
 def create_folder(path):
@@ -76,11 +74,15 @@ def ingest_jira(configuration: str) -> bool:
     try:
         # Configuration
         config = get_yaml_config(configuration)
-        email = config['jira']['email']
-        api_token = config['jira']['api_token']
-        jira_server_url = config['jira']['server_url']
-        query = config['jira']['query']
-        embeddings_model = config['embeddings'].get('model', 'text-embedding-ada-002')
+        jira_level = config.get('jira', {})
+        email = jira_level.get('email', None)
+        api_token = jira_level.get('api_token', None)
+        jira_server_url = jira_level.get('server_url', None)
+        query = jira_level.get('query', None)
+
+        embeddings_level = config.get('embeddings', {})
+        openapi_key = embeddings_level.get('openapi_key', None)
+        embeddings_model = embeddings_level.get('model', 'text-embedding-ada-002')
 
         # Reader
         reader = JiraReader(email=email, api_token=api_token, server_url=jira_server_url)
@@ -111,13 +113,16 @@ def ingest_jira(configuration: str) -> bool:
         save_to_file(lc_documents, prefix='jira')
 
         # Vectorstore
-        api_key = config['vectorstore']['api_key']
-        environment = config['vectorstore']['environment']
-        index_name = config['vectorstore']['index_name']
-        jira_namespace = config['jira']['namespace']
-        initialize_vectorstore_connection(api_key=api_key, environment=environment)
+        vectorstore_level = config.get('vectorstore', {})
+        vectorstore_api_key = vectorstore_level.get('api_key', None)
+        index_name = vectorstore_level.get('index_name', None)
 
-        ingest(lc_documents, index_name, jira_namespace, embeddings_model)        
+        jira_namespace = jira_level.get('namespace', None)
+
+        os.environ['OPENAI_API_KEY'] = openapi_key
+        os.environ['PINECONE_API_KEY'] = vectorstore_api_key
+
+        ingest(lc_documents, openapi_key, index_name, jira_namespace, embeddings_model)        
 
     except Exception as e:
         logging.getLogger().error(f"Error: {e}")
@@ -133,20 +138,25 @@ def ingest_confluence(
     ret = True
     try:
         config = get_yaml_config(configuration)
-        user_name = config['confluence'].get('email', None)
-        conf_token = config['confluence'].get('api_token', None)
-        confluence_server_url = config['confluence'].get('server_url', None)
-        space_keys = config['confluence'].get('spaces', None)
-        page_ids = config['confluence'].get('page_ids', None)
-        include_attachments = config['confluence'].get('include_attachments', None)
-        include_children = config['confluence'].get('include_children', None)
-        cloud = config['confluence'].get('cloud', None)
-        confluence_namespace = config['confluence'].get('namespace', None)
-        openapi_key = config['embeddings'].get('openapi_key', None)
-        chunk_size = config['embeddings'].get('chunk_size', None)
-        chunk_overlap = config['embeddings'].get('chunk_overlap', None)
-        vectorstore_api_key = config['vectorstore'].get('api_key', None)
-        embeddings_model = config['embeddings'].get('model', 'text-embedding-ada-002')
+        confluence_level = config.get('confluence', {})
+        user_name = confluence_level.get('email', None)
+        conf_token = confluence_level.get('api_token', None)
+        confluence_server_url = confluence_level.get('server_url', None)
+        space_keys = confluence_level.get('spaces', None)
+        page_ids = confluence_level.get('page_ids', None)
+        include_attachments = confluence_level.get('include_attachments', None)
+        include_children = confluence_level.get('include_children', None)
+        cloud = confluence_level.get('cloud', None)
+        confluence_namespace = confluence_level.get('namespace', None)
+
+        embeddings_level = config.get('embeddings', {})
+        openapi_key = embeddings_level.get('openapi_key', None)
+        chunk_size = embeddings_level.get('chunk_size', None)
+        chunk_overlap = embeddings_level.get('chunk_overlap', None)
+        embeddings_model = embeddings_level.get('model', 'text-embedding-ada-002')
+
+        vectorstore_level = config.get('vectorstore', {})
+        vectorstore_api_key = vectorstore_level.get('api_key', None)
 
         os.environ['OPENAI_API_KEY'] = openapi_key
         os.environ['CONFLUENCE_USERNAME'] = user_name
@@ -180,13 +190,11 @@ def ingest_confluence(
         save_to_file(lc_documents, prefix='confluence')
 
         # Vectorstore
-        environment = config['vectorstore']['environment']
-        index_name = config['vectorstore']['index_name']
-        initialize_vectorstore_connection(api_key=vectorstore_api_key, environment=environment)
+        index_name = vectorstore_level.get('index_name', None)
 
         logging.getLogger().info(f"Documents {documents.__len__()} Chunks {lc_documents.__len__()}")
 
-        ingest(lc_documents, "", index_name, confluence_namespace, embeddings_model)
+        ingest(lc_documents, openapi_key, index_name, confluence_namespace, embeddings_model)
 
     except Exception as e:
         logging.getLogger().error(f"Error: {e}")
@@ -200,26 +208,32 @@ def ingest_github(configuration: str) -> bool:
     try:
         config = get_yaml_config(configuration)
 
-        github_token = config['github']['api_token']
-        base_url = config['github']['base_url']
-        api_version = config['github']['api_version']
-        verbose = config['github']['verbose']
-        owner = config['github']['owner']
-        repo = config['github']['repo']
-        filter_directories = config['github']['filter_directories']
-        filter_file_extensions = config['github']['filter_file_extensions']
-        concurrent_requests = config['github']['concurrent_requests']
-        branch = config['github']['branch']
-        commit_sha = config['github']['commit_sha'] or None
-        namespace = config['github']['namespace']
+        gh_level = config.get('github', {})
+        github_token = gh_level.get('api_token', None)
+        base_url = gh_level.get('base_url', None)
+        api_version = gh_level.get('api_version', None)
+        verbose = gh_level.get('verbose', None)
+        owner = gh_level.get('owner', None)
+        repo = gh_level.get('repo', None)
+        filter_directories = gh_level.get('filter_directories', None)
+        filter_file_extensions = gh_level.get('filter_file_extensions', None)
+        concurrent_requests = gh_level.get('concurrent_requests', None)
+        branch = gh_level.get('branch', None)
+        commit_sha = gh_level.get('commit_sha', None)
+        namespace = gh_level.get('namespace', None)
 
-        chunk_size = config['embeddings']['chunk_size']
-        chunk_overlap = config['embeddings']['chunk_overlap']
-        embeddings_model = config['embeddings'].get('model', 'text-embedding-ada-002')
+        embeddings_level = config.get('embeddings', {})
+        openapi_key = embeddings_level.get('openapi_key', None)
+        chunk_size = embeddings_level.get('chunk_size', None)
+        chunk_overlap = embeddings_level.get('chunk_overlap', None)
+        embeddings_model = embeddings_level.get('model', 'text-embedding-ada-002')
 
-        vectorstore_api_key = config['vectorstore']['api_key']
-        environment = config['vectorstore']['environment']
-        index_name = config['vectorstore']['index_name']
+        vectorstore_level = config.get('vectorstore', {})
+        vectorstore_api_key = vectorstore_level.get('api_key', None)
+        index_name = vectorstore_level.get('index_name', None)
+
+        os.environ['OPENAI_API_KEY'] = openapi_key
+        os.environ['PINECONE_API_KEY'] = vectorstore_api_key
 
         github_client = GithubClient(github_token, base_url, api_version, verbose)
         loader = GithubRepositoryReader(
@@ -242,9 +256,7 @@ def ingest_github(configuration: str) -> bool:
 
         save_to_file(lc_documents, prefix='github')
 
-        initialize_vectorstore_connection(api_key=vectorstore_api_key, environment=environment)
-
-        ingest(lc_documents, index_name, namespace, embeddings_model)
+        ingest(lc_documents, openapi_key, index_name, namespace, embeddings_model)
 
     except Exception as e:
         logging.getLogger().error(f"Error: {e}")
@@ -277,29 +289,32 @@ def ingest_s3(
     ret = True
     try:
         config = get_yaml_config(configuration)
-        url = config['s3'].get('url', None)
-        region = config['s3'].get('region', None)
-        bucket = config['s3'].get('bucket', None)
-        key = config['s3'].get('key', None)
-        aws_access_key = config['s3'].get('aws_access_key', None)
-        aws_secret_key = config['s3'].get('aws_secret_key', None)
-        prefix = config['s3'].get('prefix', None)
-        embeddings_model = config['embeddings'].get('model', 'text-embedding-ada-002')
-        required_exts = config['s3'].get('required_exts', None)
-        use_local_folder = config['s3'].get('use_local_folder', False)
-        local_folder = config['s3'].get('local_folder', None)
-        use_metadata_file = config['s3'].get('use_metadata_file', False)
-        use_augment_metadata = config['s3'].get('use_augment_metadata', False)
-        delete_local_folder = config['s3'].get('delete_local_folder', False)
-        process_files = config['s3'].get('process_files', False)
-        reprocess_failed_files = config['s3'].get('reprocess_failed_files', False)
-        reprocess_valid_status_list = config['s3'].get('reprocess_valid_status_list', [])
+        s3_level = config.get('s3', {})
+        embeddings_level = config.get('embeddings', {})
+        url = s3_level.get('url', None)
+        region = s3_level.get('region', None)
+        bucket = s3_level.get('bucket', None)
+        key = s3_level.get('key', None)
+        aws_access_key = s3_level.get('aws_access_key', None)
+        aws_secret_key = s3_level.get('aws_secret_key', None)
+        prefix = s3_level.get('prefix', None)
+        embeddings_model = embeddings_level.get('model', 'text-embedding-ada-002')
+        required_exts = s3_level.get('required_exts', None)
+        use_local_folder = s3_level.get('use_local_folder', False)
+        local_folder = s3_level.get('local_folder', None)
+        use_metadata_file = s3_level.get('use_metadata_file', False)
+        use_augment_metadata = s3_level.get('use_augment_metadata', False)
+        delete_local_folder = s3_level.get('delete_local_folder', False)
+        process_files = s3_level.get('process_files', False)
+        reprocess_failed_files = s3_level.get('reprocess_failed_files', False)
+        reprocess_valid_status_list = s3_level.get('reprocess_valid_status_list', [])
 
         # Saia
-        saia_base_url = config['saia'].get('base_url', None)
-        saia_api_token = config['saia'].get('api_token', None)
-        saia_profile = config['saia'].get('profile', None)
-        max_parallel_executions = config['saia'].get('max_parallel_executions', 5)
+        saia_level = config.get('saia', {})
+        saia_base_url = saia_level.get('base_url', None)
+        saia_api_token = saia_level.get('api_token', None)
+        saia_profile = saia_level.get('profile', None)
+        max_parallel_executions = saia_level.get('max_parallel_executions', 5)
 
         if saia_base_url is not None:
             ret = is_valid_profile(saia_base_url, saia_api_token, saia_profile)
@@ -332,7 +347,7 @@ def ingest_s3(
 
             if reprocess_failed_files:
                 # Clean files with failed state, re upload
-                local_file = config['s3'].get('reprocess_failed_files_file', None)
+                local_file = s3_level.get('reprocess_failed_files_file', None)
                 docs = load_json_file(local_file)
                 to_delete, file_paths = sync_failed_files(docs['documents'], local_folder, reprocess_valid_status_list)
 
@@ -351,7 +366,7 @@ def ingest_s3(
                 file_path = os.path.dirname(file_paths[0])
                 shutil.rmtree(file_path)
 
-            upload_operation_log = config['saia'].get('upload_operation_log', False)
+            upload_operation_log = saia_level.get('upload_operation_log', False)
             if upload_operation_log:
                 end_time = time.time()
                 message_response = f"bulk ingest ({end_time - start_time:.2f}s)"
@@ -368,11 +383,14 @@ def ingest_s3(
                 for document in documents:
                     logging.getLogger().info(document.lc_id, document.metadata)
 
+            embeddings_level = config.get('embeddings', {})
+            openapi_key = embeddings_level.get('openapi_key', None)
+
             # Vectorstore
-            api_key = config['vectorstore']['api_key']
-            environment = config['vectorstore']['environment']
-            index_name = config['vectorstore']['index_name']
-            namespace = config['vectorstore']['namespace']
+            vectorstore_level = config.get('vectorstore', {})
+            api_key = vectorstore_level.get('api_key', None)
+            index_name = vectorstore_level.get('index_name', None)
+            namespace = vectorstore_level.get('namespace', None)
 
             doc_count = documents.__len__()
             if doc_count <= 0:
@@ -380,9 +398,7 @@ def ingest_s3(
 
             logging.getLogger().info(f"Vectorizing {doc_count} items to {index_name}/{namespace}")
 
-            initialize_vectorstore_connection(api_key=api_key, environment=environment)
-
-            ret = ingest(documents, index_name, namespace, embeddings_model)
+            ret = ingest(documents, openapi_key, index_name, namespace, embeddings_model)
 
     except Exception as e:
         logging.getLogger().error(f"Error: {e}")
@@ -399,11 +415,12 @@ def ingest_gdrive(
     ret = True
     try:
         config = get_yaml_config(configuration)
-        folder_id = config['googledrive'].get('folder_id', None)
-        file_id = config['googledrive'].get('file_id', None)
-        mime_types = config['googledrive'].get('mime_types', None)
-        cred = config['googledrive'].get('credentials', None)
-        delete_local_folder = config['googledrive'].get('delete_local_folder', False)
+        gdrive_level = config.get('googledrive', {})
+        folder_id = gdrive_level.get('folder_id', None)
+        file_id = gdrive_level.get('file_id', None)
+        mime_types = gdrive_level.get('mime_types', None)
+        cred = gdrive_level.get('credentials', None)
+        delete_local_folder = gdrive_level.get('delete_local_folder', False)
 
         loader = GoogleDriveReader(credentials_path=cred)
         paths = loader.get_files(folder_id=folder_id, mime_types=mime_types)
