@@ -16,7 +16,6 @@ confluence:
   namespace: !!str 'namespace name' # Must match the associated RAG assistant, check the index section
 vectorstore:
   api_key: !!str 'check with the provider'
-  environment: !!str 'check with the provider'
   index_name: !!str 'check with the provider'
 embeddings:
   openapi_key: !!str 'check with the provider' # Or use your own
@@ -35,7 +34,11 @@ saia-cli ingest -c ./config/confluence_sandbox.yaml --type confluence
 Expected output is similar to:
 
 ```bash
-Here the detail
+INFO:root:space <space_name1> documents <number>
+INFO:root:space <space_name2> documents <number>
+...
+INFO:root:Documents <total_number> Chunks <total_chunks>
+INFO:root:Successfully confluence ingestion 'timestamp' config: <path_to_config.yaml>
 ```
 
 __Tip__: under the `debug` folder, the `{provider}_YYYYMMDDHHMMSS.json` is the result of the issues ingestion and can be uploaded to any RAG assistant if you use the `.custom` extension when uploading the file.

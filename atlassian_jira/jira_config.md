@@ -12,7 +12,6 @@ jira:
   namespace: !!str 'namespace name' # Must match the associated RAG assistant, check the index section
 vectorstore:
   api_key: !!str 'check with the provider'
-  environment: !!str 'check with the provider'
   index_name: !!str 'check with the provider'
 embeddings:
   openapi_key: !!str 'check with the provider'
