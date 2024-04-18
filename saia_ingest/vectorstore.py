@@ -12,7 +12,8 @@ warnings.filterwarnings("ignore", category=DeprecationWarning)
 
 
 def initialize_vectorstore_connection(api_key=None, environment=None):
-    pinecone.init(api_key=api_key, environment=environment)
+    pass
+    #pinecone.init(api_key=api_key, environment=environment)
 
 def get_vectorstore_index(index_name=None):
     return pinecone.Index(index_name)
