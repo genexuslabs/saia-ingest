@@ -11,9 +11,6 @@ warnings.filterwarnings(action="ignore", message="unclosed", category=ResourceWa
 warnings.filterwarnings("ignore", category=DeprecationWarning) 
 
 
-def initialize_vectorstore_connection(api_key=None, environment=None):
-    pass
-
 def get_vectorstore_index(index_name=None):
     return pinecone.Index(index_name)
 
