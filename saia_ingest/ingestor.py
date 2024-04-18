@@ -117,7 +117,7 @@ def ingest_jira(configuration: str) -> bool:
         jira_namespace = config['jira']['namespace']
         initialize_vectorstore_connection(api_key=api_key, environment=environment)
 
-        ingest(lc_documents, index_name, jira_namespace)        
+        ingest(lc_documents, index_name, jira_namespace, embeddings_model)        
 
     except Exception as e:
         logging.getLogger().error(f"Error: {e}")
@@ -382,7 +382,7 @@ def ingest_s3(
 
             initialize_vectorstore_connection(api_key=api_key, environment=environment)
 
-            ret = ingest(documents, index_name, namespace)
+            ret = ingest(documents, index_name, namespace, embeddings_model)
 
     except Exception as e:
         logging.getLogger().error(f"Error: {e}")
