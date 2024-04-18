@@ -35,5 +35,5 @@ INFO:root:processed 10 from 10
 INFO:root:Successfully jira ingestion 'no timestamp' config: ./config/jira_sandbox.yaml
 ```
 
-__Tip__: under the `debug` folder, the `jira_YYYYMMDDHHMMSS.json` is the result of the issues ingestion and can be uploaded to any RAG assistant if you use the `.custom` extension when uploading the file.
+__Tip__: under the `debug` folder, the `{provider}_YYYYMMDDHHMMSS.json` is the result of the issues ingestion and can be uploaded to any RAG assistant if you use the `.custom` extension when uploading the file.
 
