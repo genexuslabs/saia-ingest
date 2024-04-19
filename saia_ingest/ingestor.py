@@ -216,11 +216,14 @@ def ingest_github(configuration: str) -> bool:
         owner = gh_level.get('owner', None)
         repo = gh_level.get('repo', None)
         filter_directories = gh_level.get('filter_directories', None)
+        filter_directories_filter = gh_level.get('filter_directories_filter', 'INCLUDE')
         filter_file_extensions = gh_level.get('filter_file_extensions', None)
+        filter_file_extensions_filter = gh_level.get('filter_file_extensions_filter', 'INCLUDE')
         concurrent_requests = gh_level.get('concurrent_requests', None)
         branch = gh_level.get('branch', None)
         commit_sha = gh_level.get('commit_sha', None)
         namespace = gh_level.get('namespace', None)
+        use_parser = gh_level.get('use_parser', False)
 
         embeddings_level = config.get('embeddings', {})
         openapi_key = embeddings_level.get('openapi_key', None)
@@ -236,15 +239,31 @@ def ingest_github(configuration: str) -> bool:
         os.environ['PINECONE_API_KEY'] = vectorstore_api_key
 
         github_client = GithubClient(github_token, base_url, api_version, verbose)
-        loader = GithubRepositoryReader(
-            github_client,
-            owner = owner,
-            repo = repo,
-            filter_directories = (filter_directories, GithubRepositoryReader.FilterType.INCLUDE),
-            filter_file_extensions = (filter_file_extensions, GithubRepositoryReader.FilterType.INCLUDE),
-            verbose = verbose,
-            concurrent_requests = concurrent_requests
-        )
+
+        loader_args = {
+            'github_client': github_client,
+            'owner': owner,
+            'repo': repo,
+            'use_parser': use_parser,
+            'verbose': verbose,
+            'concurrent_requests': concurrent_requests
+        }        
+        if filter_directories is not None:
+            filter_directories_filter = GithubRepositoryReader.FilterType.INCLUDE if filter_directories_filter == 'INCLUDE' else GithubRepositoryReader.FilterType.EXCLUDE
+            loader_args['filter_directories'] = (filter_directories, filter_directories_filter)
+
+        if filter_file_extensions is not None:
+            filter_file_extensions_filter = GithubRepositoryReader.FilterType.INCLUDE if filter_file_extensions_filter == 'INCLUDE' else GithubRepositoryReader.FilterType.EXCLUDE
+            loader_args['filter_file_extensions'] = (filter_file_extensions, filter_file_extensions_filter)
+
+        loader = GithubRepositoryReader(**loader_args)
+
+        if branch and commit_sha:
+            logging.getLogger().error('branch and commit_sha are exclusive, use one or the other')
+            return False
+
+        branch = branch if branch else None
+        commit_sha = commit_sha if commit_sha else None
 
         documents = loader.load_langchain_documents(commit_sha=commit_sha, branch=branch)
 
@@ -259,7 +278,7 @@ def ingest_github(configuration: str) -> bool:
         ingest(lc_documents, openapi_key, index_name, namespace, embeddings_model)
 
     except Exception as e:
-        logging.getLogger().error(f"Error: {e}")
+        logging.getLogger().error(f"Error: {type(e)} {e}")
         ret = False
     finally:
         return ret

@@ -60,6 +60,7 @@ The configuration file details all parameters needed to run the ingestion, use t
  * `s3` [config](./amazon_s3/s3_config.md)
  * `jira` [config](./atlassian_jira/jira_config.md)
  * `confluence` [config](./atlassian_confluence/confluence_config.md)
+ * `github` [config](./docs/github_config.md)
 
 ### Logging
 
