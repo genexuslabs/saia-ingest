@@ -1,7 +1,7 @@
 # Contributing
 This repository –whether a software project, design guide, or other, also called 'component’– can be used to interact with [GeneXus Enterprise AI](./EnterpriseAISuite.md).
 
-It is licensed under Apache 2.0, so all contributions must comply with this licensing.
+It is [licensed under Apache 2.0](./LICENSE), so all contributions must comply with this licensing.
 
 ## How can you contribute?
 To be accepted, contributions must involve:

@@ -1,3 +1,16 @@
+Welcome to the [GeneXus Enterprise AI](./EnterpriseAISuite.md) Ingest utilities package, codename `saia-ingest`.
+
+It's purpose is to provide sample code to connect to different data sources and help external developers to interact with the platform to upload documents. Check the [configuration](#configuration) section to know the available sources.
+
+You can use this repository as reference to extend it for other [data sources](#data-sources); please let us know if you create [new connectors](./CONTRIBUTION.md) and contribute back!
+
+## Getting started
+
+ * First clone this repository.
+ * [Install](#installation) it locally.
+ * Define your [data source](#data-sources) to use and configure a [yaml](#yaml) file.
+ * Execute it using the samples provided.
+
 ## Installation
 
 To install the package and its dependencies, follow these steps:
@@ -29,6 +42,8 @@ To install the package and its dependencies, follow these steps:
    export PYTHONPATH="$PYTHONPATH:$(pwd)"
    ```
 
+Now the package is locally installed, continue defining a [configuration file](#yaml).
+
 ## Configuration
 
 ### Variables
@@ -55,7 +70,9 @@ saia-cli ingest -c ./config/s3_sandbox.yaml -t 2023-12-21
 saia-cli ingest -c ./config/s3_sandbox.yaml --type test
 ```
 
-The configuration file details all parameters needed to run the ingestion, use the `--type` to decide the target ingestion; supported values are:
+### Data Sources
+
+The configuration file details all parameters needed to run the ingestion, use the `--type` to decide the target ingestion; supported data sources are:
 
  * `s3` [config](./amazon_s3/s3_config.md)
  * `jira` [config](./atlassian_jira/jira_config.md)
