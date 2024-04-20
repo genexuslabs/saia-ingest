@@ -51,3 +51,8 @@ class DefaultLLM:
     FREQUENCY_PENALTY = 0
     PRESENCE_PENALTY = 0
     N = 1
+
+
+class Defaults:
+    PACKAGE_DESCRIPTION = "GeneXus Enterprise AI"
+    PACKAGE_URL = "https://github.com/genexuslabs/saia-ingest/blob/main/README.md"

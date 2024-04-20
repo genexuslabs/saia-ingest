@@ -6,7 +6,7 @@ from datetime import datetime, timezone, timedelta
 import logging
 from logging.handlers import RotatingFileHandler
 
-from ..ingestor import ingest_s3, ingest_jira, ingest_confluence, ingest_github
+from ..ingestor import ingest_s3, ingest_jira, ingest_confluence, ingest_github, ingest_gdrive
 from ..log import AccumulatingLogHandler
 
 logging.basicConfig(level=logging.INFO)
@@ -51,6 +51,8 @@ def handle_ingest(
         ret = ingest_confluence(config_file)
     elif type == "github":
         ret = ingest_github(config_file)
+    elif type == "gdrive":
+        ret = ingest_gdrive(config_file)
     else:
         logging.getLogger().error(f"Unknown {type} type")
         return False

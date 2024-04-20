@@ -12,6 +12,7 @@ from langchain_openai import OpenAIEmbeddings
 from langchain_community.vectorstores import Pinecone
 from langchain.text_splitter import CharacterTextSplitter, RecursiveCharacterTextSplitter
 
+from .config import DefaultVectorStore, Defaults
 from .utils import get_yaml_config, get_metadata_file, load_json_file
 # tweaked the implementation locally
 from atlassian_jira.jirareader import JiraReader
@@ -27,7 +28,7 @@ from .profile_utils import is_valid_profile, file_upload, file_delete, operation
 
 verbose = False
 
-def split_documents(documents, chunk_size=1000, chunk_overlap=100):
+def split_documents(documents, chunk_size=DefaultVectorStore.CHUNK_SIZE, chunk_overlap=DefaultVectorStore.CHUNK_OVERLAP):
     text_splitter = RecursiveCharacterTextSplitter(chunk_size=chunk_size, chunk_overlap=chunk_overlap)
     lc_documents = text_splitter.split_documents(documents)
     return lc_documents
@@ -122,7 +123,7 @@ def ingest_jira(configuration: str) -> bool:
         os.environ['OPENAI_API_KEY'] = openapi_key
         os.environ['PINECONE_API_KEY'] = vectorstore_api_key
 
-        ingest(lc_documents, openapi_key, index_name, jira_namespace, embeddings_model)        
+        ingest(lc_documents, openapi_key, index_name, jira_namespace, embeddings_model)
 
     except Exception as e:
         logging.getLogger().error(f"Error: {e}")
@@ -260,7 +261,8 @@ def ingest_github(configuration: str) -> bool:
 
         if branch and commit_sha:
             logging.getLogger().error('branch and commit_sha are exclusive, use one or the other')
-            return False
+            ret = False
+            return ret
 
         branch = branch if branch else None
         commit_sha = commit_sha if commit_sha else None
@@ -269,7 +271,7 @@ def ingest_github(configuration: str) -> bool:
 
         if documents.__len__() <= 0:
             logging.getLogger().error('No documents found')
-            return False
+            return ret
         
         lc_documents = split_documents(documents, chunk_size=chunk_size, chunk_overlap=chunk_overlap)
 
@@ -433,35 +435,64 @@ def ingest_gdrive(
     ) -> bool:
     ret = True
     try:
+        start_time = time.time()
+
         config = get_yaml_config(configuration)
         gdrive_level = config.get('googledrive', {})
         folder_id = gdrive_level.get('folder_id', None)
-        file_id = gdrive_level.get('file_id', None)
         mime_types = gdrive_level.get('mime_types', None)
         cred = gdrive_level.get('credentials', None)
         delete_local_folder = gdrive_level.get('delete_local_folder', False)
 
         loader = GoogleDriveReader(credentials_path=cred)
-        paths = loader.get_files(folder_id=folder_id, mime_types=mime_types)
-        if paths is not None:
-            for path in paths:
-                logging.getLogger().info(path)
-        '''
-        # Warning: this will load all files locally and directly chunk the data
-        docs = loader.load_data(folder_id=folder_id)
-        if docs is not None:
-            for doc in docs:
-                doc.id_ = doc.metadata["file_name"]
-                logging.getLogger().info(doc.lc_id, doc.metadata)
-        '''
-        if path and delete_local_folder:
-            file_path = os.path.dirname(path)
+        file_paths = loader.get_files(folder_id=folder_id, mime_types=mime_types)
+
+        doc_count = len(file_paths)
+        if doc_count <= 0:
+            logging.getLogger().warn('No documents found')
+            return ret
+
+        path = os.path.dirname(file_paths[0])
+        logging.getLogger().info(f"Downloaded {doc_count} files to {path}")
+
+        # Saia
+        saia_level = config.get('saia', {})
+        saia_base_url = saia_level.get('base_url', None)
+        saia_api_token = saia_level.get('api_token', None)
+        saia_profile = saia_level.get('profile', None)
+        max_parallel_executions = saia_level.get('max_parallel_executions', 5)
+        upload_operation_log = saia_level.get('upload_operation_log', False)
+
+        if saia_base_url is None:
+            logging.getLogger().error(f"Missing '{Defaults.PACKAGE_DESCRIPTION}' configuration")
+            logging.getLogger().error(f"Review configuration {Defaults.PACKAGE_URL}")
+            ret = False
+            return ret
+
+        ret = is_valid_profile(saia_base_url, saia_api_token, saia_profile)
+        use_metadata_file = False
+        if ret is False:
+            logging.getLogger().error(f"Invalid profile {saia_profile}")
+            ret = False
+            return ret
+
+        with concurrent.futures.ThreadPoolExecutor(max_workers=max_parallel_executions) as executor:
+            futures = [executor.submit(saia_file_upload, saia_base_url, saia_api_token, saia_profile, file_item, use_metadata_file) for file_item in file_paths]
+            concurrent.futures.wait(futures)
+        
+        if delete_local_folder and len(file_paths) > 0:
+            file_path = os.path.dirname(file_paths[0])
             shutil.rmtree(file_path)
 
-        return True
+        if upload_operation_log:
+            end_time = time.time()
+            message_response = f"bulk ingest ({end_time - start_time:.2f}s)"
+            ret = operation_log_upload(saia_base_url, saia_api_token, saia_profile, "ALL", message_response, 0)
+
+        return ret
 
     except Exception as e:
-        logging.getLogger().error(f"Error: {e}")
+        logging.getLogger().error(f"Error: {type(e)} {e}")
         ret = False
     finally:
         return ret
