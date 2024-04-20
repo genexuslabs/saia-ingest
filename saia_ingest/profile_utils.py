@@ -4,6 +4,7 @@ import logging
 import requests
 import json
 from .log import AccumulatingLogHandler
+from .config import DefaultHeaders
 
 def is_valid_profile(
         base_url: str,
@@ -17,7 +18,7 @@ def is_valid_profile(
             url, 
             headers={
                 'Authorization': f'Bearer {api_token}',
-                'Content-Type': 'application/json'
+                'Content-Type': DefaultHeaders.JSON_CONTENT_TYPE
             })
         response_body = response.json()
         ret = response.ok
@@ -123,7 +124,7 @@ def operation_log_upload(
             json=data,
             headers={
                 'Authorization': f'Bearer {api_token}',
-                'Content-Type': 'application/json',
+                'Content-Type': DefaultHeaders.JSON_CONTENT_TYPE,
             }
         )
         response_body = response.json()
@@ -151,7 +152,7 @@ def file_delete(
             url, 
             headers={
                 'Authorization': f'Bearer {api_token}',
-                'Content-Type': 'application/json'
+                'Content-Type': DefaultHeaders.JSON_CONTENT_TYPE
             })
         ret = response.ok
         if response.status_code != 200:
@@ -218,7 +219,7 @@ def get_documents(
             url, 
             headers={
                 'Authorization': f'Bearer {api_token}',
-                'Content-Type': 'application/json'
+                'Content-Type': DefaultHeaders.JSON_CONTENT_TYPE
             })
         ret = response.ok
         if response.status_code != 200:
