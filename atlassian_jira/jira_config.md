@@ -8,15 +8,15 @@ jira:
   api_token: !!str 'some_token' # get it from JIRA
   server_url: !!str 'somedomain.atlassian.net' # check with your provider
   project: !!str 'some project'
-  query: !!str 'filter=10002' # Create a filter for the issues and check the associated ID
+  query: !!str 'filter=id' # Create a filter for the issues and check the associated ID
   namespace: !!str 'namespace name' # Must match the associated RAG assistant, check the index section
 vectorstore:
   api_key: !!str 'check with the provider'
   index_name: !!str 'check with the provider'
 embeddings:
   openapi_key: !!str 'check with the provider'
-  chunk_size: !!int integer # 1000 by default
-  chunk_overlap: !!int integer # 100 by default
+  chunk_size: !!int integer # DefaultVectorStore.CHUNK_SIZE by default
+  chunk_overlap: !!int integer # DefaultVectorStore.CHUNK_OVERLAP by default
 ```
 
 ### Execution
