@@ -78,6 +78,7 @@ The configuration file details all parameters needed to run the ingestion, use t
  * `jira` [config](./atlassian_jira/jira_config.md)
  * `confluence` [config](./atlassian_confluence/confluence_config.md)
  * `github` [config](./docs/github_config.md)
+ * `gdrive` Google Drive [config](./gdrive/gdrive_config.md)
 
 ### Logging
 
