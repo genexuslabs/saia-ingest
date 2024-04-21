@@ -33,7 +33,7 @@ Expected output is similar to:
 ```bash
 INFO:botocore.credentials:Found credentials in shared credentials file: ~/.aws/credentials
 INFO:root:Downloading files from 'bucketname' to C:\Users\UserName\AppData\Local\Temp\tmp435tqchf
-INFO:root:Skipped: 5 Total: 5
-INFO:root:time: 3.24s
+INFO:root:Skipped: <X> Total: <Y>
+INFO:root:time: <Z>s # seconds
 INFO:root:Successfully s3 ingestion 'timestamp' config: ./config/s3_sandbox.yaml
 ```
