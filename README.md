@@ -1,12 +1,14 @@
 Welcome to the [GeneXus Enterprise AI](./EnterpriseAISuite.md) Ingest utilities package, codename `saia-ingest`.
 
-It's purpose is to provide sample code to connect to different data sources and help external developers to interact with the platform to upload documents. Check the [configuration](#configuration) section to know the available sources.
+It's purpose is to provide sample code to connect to different data sources and help external developers to interact with the platform to upload documents. Check the [configuration](#configuration) section to know the available data-sources.
+
+Check the [API](API.md) section if you want to get sample code to explore the [GeneXus Enterprise AI](./EnterpriseAISuite.md) API.
 
 You can use this repository as reference to extend it for other [data sources](#data-sources); please let us know if you create [new connectors](./CONTRIBUTION.md) and contribute back!
 
 ## Getting started
 
- * First clone this repository.
+ * Clone this repository.
  * [Install](#installation) it locally.
  * Define your [data source](#data-sources) to use and configure a [yaml](#yaml) file.
  * Execute it using the samples provided.
@@ -15,32 +17,37 @@ You can use this repository as reference to extend it for other [data sources](#
 
 To install the package and its dependencies, follow these steps:
 
-1. Create a new virtual environment and activate it, for this case called `venv`:
+1. Create a new virtual environment and activate it, for this case we will create one called `venv`:
 
-   ```bash
-   # Ubuntu
-   sudo apt install python3-venv
-   python3 -m venv venv
-   source venv/bin/activate
-   # Windows
-   python -m venv venv
-   .\venv\Scripts\Activate
-   ```
+```bash
+# Linux
+sudo apt install python3-venv
+python3 -m venv venv
+source venv/bin/activate
+# MAC
+virtualenv venv
+source venv/bin/activate
+# Windows
+python -m venv venv
+.\venv\Scripts\Activate
+```
+
 2. Install the package dependencies:
 
-   ```bash
-   # install poetry first
-   pip install poetry
-   # fist time
-   poetry install
-   # on repository updates
-   poetry update
-   ```
+```bash
+# install poetry first
+pip install poetry
+# fist time
+poetry install
+# on repository updates
+poetry update
+```
+
 3. Set the `PYTHONPATH` environment variable to the path of the current directory:
 
-   ```bash
-   export PYTHONPATH="$PYTHONPATH:$(pwd)"
-   ```
+```bash
+export PYTHONPATH="$PYTHONPATH:$(pwd)"
+```
 
 Now the package is locally installed, continue defining a [configuration file](#yaml).
 
@@ -48,7 +55,7 @@ Now the package is locally installed, continue defining a [configuration file](#
 
 ### Variables
 
-Depending on the command used you may need to set some environment variables
+Depending on the command used you may need to set some environment variables such as:
 
 ```
 export OPENAI_API_KEY=<your API Key>
@@ -86,7 +93,7 @@ Check the `debug` folder, where every execution is logged.
 
 ## Run Tests
 
-ToDo add tests, so far a dummy one just to check the mechanism is working.
+ToDo add tests, so far a simple one just to check the mechanism is working, make sure to create a [configuration](#yaml) file.
 
 ```python
 pytest tests/test_api.py
