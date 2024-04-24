@@ -473,7 +473,7 @@ def ingest_sharepoint(
     ret = True
     try:
         config = get_yaml_config(configuration)
-        sharepoint_level = config.get('s3', {})
+        sharepoint_level = config.get('sharepoint', {})
         client_id= sharepoint_level.get('client_id', None) 
         client_secret= sharepoint_level.get('client_secret', None) 
         tenant_id= sharepoint_level.get('tenant_id', None) 
