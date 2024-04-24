@@ -4,26 +4,29 @@ from datetime import datetime
 import json
 import concurrent.futures
 
-from llama_index import QueryBundle
-from llama_index.retrievers import BaseRetriever
+#from llama_index import QueryBundle
+#from llama_index.retrievers import BaseRetriever
 from typing import Any, List
 
 from langchain_openai import OpenAIEmbeddings
 from langchain_community.vectorstores import Pinecone
 from langchain.text_splitter import CharacterTextSplitter, RecursiveCharacterTextSplitter
 
-from .utils import get_yaml_config, get_metadata_file, load_json_file
+from saia_ingest.profile_utils import is_valid_profile, file_upload, file_delete, operation_log_upload, sync_failed_files
+from saia_ingest.utils import get_yaml_config, get_metadata_file, load_json_file
+
 # tweaked the implementation locally
 from atlassian_jira.jirareader import JiraReader
 from atlassian_confluence.confluencereader import ConfluenceReader
 from amazon_s3.s3reader import S3Reader
 from gdrive.gdrive_reader import GoogleDriveReader
+from sharepoint.sharepoint_reader import SharePointReader
 
 from llama_hub.github_repo import GithubClient, GithubRepositoryReader
 
 import logging
 import shutil
-from .profile_utils import is_valid_profile, file_upload, file_delete, operation_log_upload, sync_failed_files
+
 
 verbose = False
 
@@ -67,7 +70,6 @@ def save_to_file(lc_documents, prefix='module'):
             json.dump(serialized_docs, json_file, ensure_ascii=False, indent=4)
     except Exception as e:
         logging.getLogger().error('save_to_file exception:', e)
-
 
 def ingest_jira(configuration: str) -> bool:
     ret = True
@@ -202,7 +204,6 @@ def ingest_confluence(
     finally:
         return ret
 
-
 def ingest_github(configuration: str) -> bool:
     ret = True
     try:
@@ -298,7 +299,6 @@ def saia_file_upload(
 
     metadata_file = get_metadata_file(file_path, file_name) if use_metadata_file else None
     file_upload(saia_base_url, saia_api_token, saia_profile, file, file_name, metadata_file)
-
 
 def ingest_s3(
         configuration: str,
@@ -464,4 +464,77 @@ def ingest_gdrive(
         logging.getLogger().error(f"Error: {e}")
         ret = False
     finally:
+        return ret
+
+def ingest_sharepoint(
+        configuration: str,
+        start_time: datetime,
+    ) -> bool:
+    ret = True
+    try:
+        config = get_yaml_config(configuration)
+        sharepoint_level = config.get('s3', {})
+        client_id= sharepoint_level.get('client_id', None) 
+        client_secret= sharepoint_level.get('client_secret', None) 
+        tenant_id= sharepoint_level.get('tenant_id', None) 
+        sharepoint_site_name= sharepoint_level.get('sharepoint_site_name', None) 
+        sharepoint_folder_path= sharepoint_level.get('sharepoint_folder_path', None) 
+        download_dir = sharepoint_level.get('download_dir', None) 
+        recursive= sharepoint_level.get('recursive', None)
+    
+        # Saia
+        saia_level = config.get('saia', {})
+        saia_base_url = saia_level.get('base_url', None)
+        saia_api_token = saia_level.get('api_token', None)
+        saia_profile = saia_level.get('profile', None)
+        max_parallel_executions = saia_level.get('max_parallel_executions', 5)
+        upload_operation_log = saia_level.get('upload_operation_log', False)
+        
+        if saia_base_url is not None:
+            ret = is_valid_profile(saia_base_url, saia_api_token, saia_profile)
+            if ret is False:
+                logging.getLogger().error(f"Invalid profile {saia_profile}")
+                return ret
+
+        # Default to ingest directly to index
+        loader = SharePointReader(
+            client_id=client_id,
+            client_secret=client_secret,
+            tenant_id=tenant_id,
+            sharepoint_site_name = sharepoint_site_name,
+            sharepoint_folder_path = sharepoint_folder_path
+        )
+        
+        files = loader.download_files_from_sharepoint_folder(
+            sharepoint_site_name=sharepoint_site_name,
+            sharepoint_folder_path=sharepoint_folder_path,
+            recursive=recursive,
+            download_dir = download_dir
+        )
+    
+        if saia_base_url is not None:
+            # Use Saia API to ingest
+
+            # Chequear necesidad de resubir archivos
+
+            with concurrent.futures.ThreadPoolExecutor(max_workers=max_parallel_executions) as executor:
+                futures = [executor.submit(saia_file_upload, saia_base_url, saia_api_token, saia_profile, file_item) for file_item in files.keys()]
+            concurrent.futures.wait(futures)
+            
+            if upload_operation_log:
+                end_time = time.time()
+                message_response = f"bulk ingest ({end_time - start_time:.2f}s)"
+                ret = operation_log_upload(saia_base_url, saia_api_token, saia_profile, "ALL", message_response, 0)
+
+        else:
+            ## Fallback to directly ingest to vectorstore
+
+            ret = False
+
+    except Exception as e:
+        logging.getLogger().error(f"Error: {e}")
+        ret = False
+    finally:
+        end_time = time.time()
+        logging.getLogger().info(f"time: {end_time - start_time:.2f}s")
         return ret
