@@ -335,6 +335,8 @@ class SharePointReader(BasePydanticReader):
         """
         download_directory = download_dir if download_dir else tempfile.TemporaryDirectory().name
         
+        logger.info(f"Downloading files from '{sharepoint_folder_path}' to {download_directory}")
+        
         access_token = self._get_access_token()
 
         self._site_id_with_host_name = self._get_site_id_with_host_name(
@@ -354,6 +356,8 @@ class SharePointReader(BasePydanticReader):
         #     f"{self._drive_id_endpoint}/{self._drive_id}/items/{sharepoint_folder_id}/children"
         #     #f"{self._drive_id_endpoint}/{self._drive_id}/items/?$filter=endsWith(name,'pdf')"
         # )
+        
+        logger.info(f"Download finished.")
         
         return self._download_files_and_extract_metadata_from_endpoint(
             folder_info_endpoint, download_directory, recursive

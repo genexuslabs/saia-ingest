@@ -3,7 +3,7 @@
 Create a `yaml` file under the `config` folder with the following parameters, let's assume `sharepoint_sandbox.yaml`; contact your provider for some of these values:
 
 ```yaml
-s3: # contact the provider for the following information
+sharepoint: # contact the provider for the following information
   client_id: !!str 'string'
   client_secret: !!str 'string'
   tenant_id: !!str 'string'
