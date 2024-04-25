@@ -7,10 +7,10 @@ from typing import Any, Dict, List, Union, Optional
 from typing import Any, Dict, List, Optional
 
 import requests
-from llama_index.core.readers import SimpleDirectoryReader
-from llama_index.core.readers.base import BaseReader, BasePydanticReader
-from llama_index.core.schema import Document
-from llama_index.core.bridge.pydantic import PrivateAttr, Field
+from llama_index.readers import SimpleDirectoryReader
+from llama_index.readers.base import BaseReader, BasePydanticReader
+from llama_index.schema import Document
+from llama_index.bridge.pydantic import PrivateAttr, Field
 
 logger = logging.getLogger(__name__)
 

@@ -516,7 +516,7 @@ def ingest_sharepoint(
             # Use Saia API to ingest
 
             # Chequear necesidad de resubir archivos
-            logging.getLogger().info("Uploading files to {saia_profile} profile.")
+            logging.getLogger().info(f"Uploading files to {saia_profile} profile.")
             
             with concurrent.futures.ThreadPoolExecutor(max_workers=max_parallel_executions) as executor:
                 futures = [executor.submit(saia_file_upload, saia_base_url, saia_api_token, saia_profile, file_item) for file_item in files.keys()]
