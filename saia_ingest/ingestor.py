@@ -2,6 +2,7 @@ import os
 import time
 from datetime import datetime
 import json
+import tempfile
 import concurrent.futures
 
 #from llama_index import QueryBundle
@@ -13,7 +14,8 @@ from langchain_community.vectorstores import Pinecone
 from langchain.text_splitter import CharacterTextSplitter, RecursiveCharacterTextSplitter
 
 from saia_ingest.profile_utils import is_valid_profile, file_upload, file_delete, operation_log_upload, sync_failed_files
-from saia_ingest.utils import get_yaml_config, get_metadata_file, load_json_file
+from saia_ingest.rag_api import RagApi
+from saia_ingest.utils import get_yaml_config, get_metadata_file, load_json_file, search_failed_files, find_value_by_key
 
 # tweaked the implementation locally
 from atlassian_jira.jirareader import JiraReader
@@ -48,6 +50,15 @@ def ingest(lc_documents, api_key, index_name, namespace, model="text-embedding-a
 def create_folder(path):
     if not os.path.exists(path):
         os.makedirs(path)
+
+def check_valid_profile(saia_base_url, saia_api_token, saia_profile):
+    ret = True
+    if saia_base_url is not None:
+        ret = is_valid_profile(saia_base_url, saia_api_token, saia_profile)
+        if ret is False:
+            logging.getLogger().error(f"Invalid profile {saia_profile}")
+            return ret
+    return ret
 
 def save_to_file(lc_documents, prefix='module'):
     try:
@@ -290,6 +301,7 @@ def saia_file_upload(
         saia_profile: str,
         file_item: str,
         use_metadata_file: bool = False,
+        metadata_extension: str = '.json'
     ):
     ret = True
 
@@ -297,8 +309,8 @@ def saia_file_upload(
     file_path = os.path.dirname(file)
     file_name = os.path.basename(file)
 
-    metadata_file = get_metadata_file(file_path, file_name) if use_metadata_file else None
-    file_upload(saia_base_url, saia_api_token, saia_profile, file, file_name, metadata_file)
+    metadata_file = get_metadata_file(file_path, file_name, metadata_extension) if use_metadata_file else None
+    file_upload(saia_base_url, saia_api_token, saia_profile, file, file_name, metadata_file, True)
 
 def ingest_s3(
         configuration: str,
@@ -481,6 +493,8 @@ def ingest_sharepoint(
         sharepoint_folder_path= sharepoint_level.get('sharepoint_folder_path', None) 
         download_dir = sharepoint_level.get('download_dir', None) 
         recursive= sharepoint_level.get('recursive', None)
+        reprocess_failed_files = sharepoint_level.get('reprocess_failed_files', False)
+        reprocess_valid_status_list = sharepoint_level.get('reprocess_valid_status_list', [])
     
         # Saia
         saia_level = config.get('saia', {})
@@ -490,11 +504,10 @@ def ingest_sharepoint(
         max_parallel_executions = saia_level.get('max_parallel_executions', 5)
         upload_operation_log = saia_level.get('upload_operation_log', False)
         
-        if saia_base_url is not None:
-            ret = is_valid_profile(saia_base_url, saia_api_token, saia_profile)
-            if ret is False:
-                logging.getLogger().error(f"Invalid profile {saia_profile}")
-                return ret
+        ragApi = RagApi(saia_base_url,saia_api_token, saia_profile)
+        
+        if not check_valid_profile(saia_base_url, saia_api_token, saia_profile):
+            return False
 
         # Default to ingest directly to index
         loader = SharePointReader(
@@ -505,21 +518,42 @@ def ingest_sharepoint(
             sharepoint_folder_path = sharepoint_folder_path
         )
         
-        files = loader.download_files_from_sharepoint_folder(
-            sharepoint_site_name=sharepoint_site_name,
-            sharepoint_folder_path=sharepoint_folder_path,
-            recursive=recursive,
-            download_dir = download_dir
-        )
+        download_directory = download_dir if download_dir else tempfile.TemporaryDirectory().name        
     
         if saia_base_url is not None:
             # Use Saia API to ingest
+            files_to_upload = []
+            if reprocess_failed_files:
+                logging.getLogger().info(f"Checking for files to sync with {saia_profile} profile.")
+                docs_to_reprocess = search_failed_files(download_directory, reprocess_valid_status_list)
+                
+                logging.getLogger().info(f"Deleting files with status: {reprocess_valid_status_list}.")
+                with concurrent.futures.ThreadPoolExecutor(max_workers=max_parallel_executions) as executor:
+                    futures = [executor.submit(ragApi.delete_profile_document, saia_profile, d['id']) for d in docs_to_reprocess]
+                concurrent.futures.wait(futures)
 
-            # Chequear necesidad de resubir archivos
+                logging.getLogger().info(f"Downloading files from sharepoint.")
+                
+                with concurrent.futures.ThreadPoolExecutor(max_workers=max_parallel_executions) as executor:
+                    futures = [executor.submit(loader.download_file_by_id, d['name'], find_value_by_key(d['metadata'], 'file_id'), os.path.dirname(d['file_path'][0:(len('.saia.metadata'))*-1])) for d in docs_to_reprocess]
+                concurrent.futures.wait(futures)
+                    
+                files_to_upload = [d['file_path'][0:(len('.saia.metadata'))*-1] for d in docs_to_reprocess]
+                            
+            else:
+                files = loader.download_files_from_folder(
+                    sharepoint_site_name=sharepoint_site_name,
+                    sharepoint_folder_path=sharepoint_folder_path,
+                    recursive=recursive,
+                    download_dir = download_directory
+                )
+                
+                files_to_upload = files.keys()
+            
             logging.getLogger().info(f"Uploading files to {saia_profile} profile.")
             
             with concurrent.futures.ThreadPoolExecutor(max_workers=max_parallel_executions) as executor:
-                futures = [executor.submit(saia_file_upload, saia_base_url, saia_api_token, saia_profile, file_item) for file_item in files.keys()]
+                futures = [executor.submit(saia_file_upload, saia_base_url, saia_api_token, saia_profile, file_item, True, '.metadata') for file_item in files_to_upload]
             concurrent.futures.wait(futures)
             
             logging.getLogger().info("Upload finished.")
@@ -531,7 +565,7 @@ def ingest_sharepoint(
 
         else:
             ## Fallback to directly ingest to vectorstore
-
+            logging.getLogger().info(f"In order to directly ingest to vectorstore please contact support.")
             ret = False
 
     except Exception as e:
@@ -541,3 +575,6 @@ def ingest_sharepoint(
         end_time = time.time()
         logging.getLogger().info(f"time: {end_time - start_time:.2f}s")
         return ret
+    
+if __name__ == '__main__':
+    ingest_sharepoint('C:\\Users\\ABS 247\\Documents\\Develop\\saia-ingest\\config.yaml', time.time())

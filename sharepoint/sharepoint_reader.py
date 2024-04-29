@@ -1,8 +1,10 @@
+
 """SharePoint files reader."""
 
 import logging
 import os
 import tempfile
+import json
 from typing import Any, Dict, List, Union, Optional
 from typing import Any, Dict, List, Optional
 
@@ -11,6 +13,7 @@ from llama_index.readers import SimpleDirectoryReader
 from llama_index.readers.base import BaseReader, BasePydanticReader
 from llama_index.schema import Document
 from llama_index.bridge.pydantic import PrivateAttr, Field
+from saia_ingest.utils import change_file_extension
 
 logger = logging.getLogger(__name__)
 
@@ -123,6 +126,7 @@ class SharePointReader(BasePydanticReader):
         """
         site_information_endpoint = (
             f"https://graph.microsoft.com/v1.0/sites?search={sharepoint_site_name}"
+            #f"https://graph.microsoft.com/v1.0/sites"
         )
         self._authorization_headers = {"Authorization": f"Bearer {access_token}"}
 
@@ -130,7 +134,24 @@ class SharePointReader(BasePydanticReader):
             url=site_information_endpoint,
             headers=self._authorization_headers,
         )
+        # responseJSON = response.json()
+        # values = []
+        
+        # values = values + responseJSON['value']
 
+        # while '@odata.nextLink' in responseJSON:
+        #     site_information_endpoint = responseJSON['@odata.nextLink']
+        #     response = requests.get(
+        #         url=site_information_endpoint,
+        #         headers=self._authorization_headers,
+        #     )
+        #     responseJSON = response.json()
+        #     values = values + responseJSON['value']
+        
+        # with open('./GUILLEGUILLE.json', 'w') as file:
+        #     file.write(json.dumps(values, indent=2))
+        
+        
         if response.status_code == 200 and "value" in response.json():
             if (
                 len(response.json()["value"]) > 0
@@ -252,6 +273,7 @@ class SharePointReader(BasePydanticReader):
                 elif "file" in item:
                     file_metadata = self._download_file(item, download_dir)
                     metadata.update(file_metadata)
+            logger.info(f"Download finished.")
             return metadata
         else:
             logger.error(response.json()["error"])
@@ -283,7 +305,7 @@ class SharePointReader(BasePydanticReader):
 
         return file_path
 
-    def _extract_metadata_for_file(self, item: Dict[str, Any]) -> Dict[str, str]:
+    def _extract_metadata_for_file(self, item: Dict[str, Any], file_path: str) -> Dict[str, str]:
         """
         Extracts metadata related to the file.
 
@@ -295,11 +317,23 @@ class SharePointReader(BasePydanticReader):
         """
         # Extract the required metadata for file.
 
-        return {
+        parent_reference = item.get("parentReference")
+
+        metadata =  {
             "file_id": item.get("id"),
             "file_name": item.get("name"),
             "url": item.get("webUrl"),
+            "parent_id": parent_reference.get("id"),
+            "eTag": item.get("eTag"),
+            "lastModifiedDateTime": item.get("lastModifiedDateTime")
         }
+        
+        medatada_path = change_file_extension(file_path, '.metadata')
+        
+        with open(medatada_path , "w") as f:
+            f.write(json.dumps(metadata, indent=2))
+            
+        return metadata
 
     def _download_file(
         self,
@@ -310,10 +344,10 @@ class SharePointReader(BasePydanticReader):
 
         file_path = self._download_file_by_url(item, download_dir)
 
-        metadata[file_path] = self._extract_metadata_for_file(item)
+        metadata[file_path] = self._extract_metadata_for_file(item, file_path)
         return metadata
 
-    def download_files_from_sharepoint_folder(
+    def download_files_from_folder(
         self,
         sharepoint_site_name: str,
         sharepoint_folder_path: Optional[str],
@@ -333,9 +367,8 @@ class SharePointReader(BasePydanticReader):
             Dict[str, str]: A dictionary containing the metadata of the downloaded files.
 
         """
-        download_directory = download_dir if download_dir else tempfile.TemporaryDirectory().name
         
-        logger.info(f"Downloading files from '{sharepoint_folder_path}' to {download_directory}")
+        logger.info(f"Downloading files from '{sharepoint_folder_path}' to {download_dir}")
         
         access_token = self._get_access_token()
 
@@ -352,16 +385,53 @@ class SharePointReader(BasePydanticReader):
 
         folder_info_endpoint = self._get_folder_info_endpoint(sharepoint_folder_id)
         
-        # (
-        #     f"{self._drive_id_endpoint}/{self._drive_id}/items/{sharepoint_folder_id}/children"
-        #     #f"{self._drive_id_endpoint}/{self._drive_id}/items/?$filter=endsWith(name,'pdf')"
-        # )
-        
-        logger.info(f"Download finished.")
+        # folder_info_endpoint=f"{self._drive_id_endpoint}/{self._drive_id}/items/{item_id}/listItem/fields"
         
         return self._download_files_and_extract_metadata_from_endpoint(
-            folder_info_endpoint, download_directory, recursive
+            folder_info_endpoint, download_dir, recursive
         )
+
+    def download_file_by_id(
+        self,
+        sharepoint_file_name,
+        sharepoint_file_id: str,
+        download_dir: str = None,
+    ) -> Dict[str, str]:
+        """
+        Downloads files from the specified folder and returns the metadata for the downloaded files.
+
+        Args:
+            download_dir (str): The directory where the files should be downloaded.
+            sharepoint_file_id (str): The id of the file to be downloaded.
+            sharepoint_file_name (str): The name of the file to be downloaded.
+
+        Returns:
+            Dict[str, str]: A dictionary containing the metadata of the downloaded file.
+
+        """
+        logger.info(f"Downloading files with id '{sharepoint_file_id}' to {download_dir}")
+        print(f"Downloading files with id '{sharepoint_file_name}' to {download_dir}")
+        
+        self._drive_id = self._get_drive_id()
+        
+        file_url = f"{self._drive_id_endpoint}/{self._drive_id}/items/{sharepoint_file_id}"
+        
+        response = requests.get(
+            url=file_url,
+            headers=self._authorization_headers,
+        )
+
+        if response.status_code == 200: # En esta response ya hay metadata que sirve.
+            data = response.json()
+            metadata = self._download_file(data, download_dir)
+            
+            logger.info(f"Download finished.")
+            return metadata
+            
+        logger.error(response.json()["error"])
+        raise ValueError(response.json()["error"])
+
+        
 
     def _load_documents_with_metadata(
         self,
