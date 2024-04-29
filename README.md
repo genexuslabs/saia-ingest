@@ -97,6 +97,7 @@ ToDo add tests, so far a simple one just to check the mechanism is working, make
 
 ```python
 pytest tests/test_api.py
+pytest tests/test_proxy.py
 ```
 
 ## Contribution
