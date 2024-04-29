@@ -152,18 +152,3 @@ class RagApi:
             with concurrent.futures.ThreadPoolExecutor(max_workers=self.max_parallel_executions) as executor:
                     futures = [executor.submit(self.delete_profile_document, self.profile, d['id']) for d in docs['documents']]
             concurrent.futures.wait(futures)
-        
-    
-if __name__ == '__main__': 
-    def save_file(name, content):
-        with open(name, 'w') as file:
-            file.write(content)
-        
-    
-    _ = load_dotenv(find_dotenv())
-    rag_manager = RagApi('https://api.qa.saia.ai','default_QY4SP0vFs7QLNOrTp-6dD3Q6Xwfsg5TeSlFd62-nIVsPzRwNkcja6lsHEYlFAtxHDzPMBUTL1RFCwBarxADWyPk1UVgnFMb3Kj54-rx2ze_IipM10TkZKHHNw_SURE8JBA3Zx8MOpx0_RrrwzxDwWZAYgLoVEF4qwpUjlyBybH8=', 'Guille Test')
-    # response = rag_manager.upload_document_with_metadata_file('C:\\Users\\ABS 247\\Documents\\Develop\\saia-ingest\\sharepoint\\share\\ux.pdf')
-    # #response = rag_manager.upload_document_binary("Guille Test2", './test/W_RC.Veterinarios_22.07.2023.json.custom', 'application/json')
-    # save_file('./test/ioio.txt', json.dumps(response, indent=2))
-    rag_manager.delete_all_documents()
-    print('a')

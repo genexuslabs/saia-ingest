@@ -111,7 +111,7 @@ class SharePointReader(BasePydanticReader):
         folder = f"items/{folder_id}" if (folder_id != '') else 'root'
         return f"{self._drive_id_endpoint}/{self._drive_id}/{folder}/children"
 
-    def _get_site_id_with_host_name(self, access_token, sharepoint_site_name) -> str:
+    def _get_site_id_with_host_name(self, access_token: str, sharepoint_site_name:str) -> str:
         """
         Retrieves the site ID of a SharePoint site using the provided site name.
 
@@ -126,7 +126,6 @@ class SharePointReader(BasePydanticReader):
         """
         site_information_endpoint = (
             f"https://graph.microsoft.com/v1.0/sites?search={sharepoint_site_name}"
-            #f"https://graph.microsoft.com/v1.0/sites"
         )
         self._authorization_headers = {"Authorization": f"Bearer {access_token}"}
 
@@ -134,23 +133,6 @@ class SharePointReader(BasePydanticReader):
             url=site_information_endpoint,
             headers=self._authorization_headers,
         )
-        # responseJSON = response.json()
-        # values = []
-        
-        # values = values + responseJSON['value']
-
-        # while '@odata.nextLink' in responseJSON:
-        #     site_information_endpoint = responseJSON['@odata.nextLink']
-        #     response = requests.get(
-        #         url=site_information_endpoint,
-        #         headers=self._authorization_headers,
-        #     )
-        #     responseJSON = response.json()
-        #     values = values + responseJSON['value']
-        
-        # with open('./GUILLEGUILLE.json', 'w') as file:
-        #     file.write(json.dumps(values, indent=2))
-        
         
         if response.status_code == 200 and "value" in response.json():
             if (
@@ -256,7 +238,7 @@ class SharePointReader(BasePydanticReader):
             headers=self._authorization_headers,
         )
 
-        if response.status_code == 200: # En esta response ya hay metadata que sirve.
+        if response.status_code == 200:
             data = response.json()
             metadata = {}
             for item in data["value"]:
@@ -384,21 +366,19 @@ class SharePointReader(BasePydanticReader):
             )
 
         folder_info_endpoint = self._get_folder_info_endpoint(sharepoint_folder_id)
-        
-        # folder_info_endpoint=f"{self._drive_id_endpoint}/{self._drive_id}/items/{item_id}/listItem/fields"
-        
+                
         return self._download_files_and_extract_metadata_from_endpoint(
             folder_info_endpoint, download_dir, recursive
         )
 
     def download_file_by_id(
         self,
-        sharepoint_file_name,
+        sharepoint_file_name: str,
         sharepoint_file_id: str,
         download_dir: str = None,
     ) -> Dict[str, str]:
         """
-        Downloads files from the specified folder and returns the metadata for the downloaded files.
+        Download file with specific id.
 
         Args:
             download_dir (str): The directory where the files should be downloaded.
@@ -421,7 +401,7 @@ class SharePointReader(BasePydanticReader):
             headers=self._authorization_headers,
         )
 
-        if response.status_code == 200: # En esta response ya hay metadata que sirve.
+        if response.status_code == 200:
             data = response.json()
             metadata = self._download_file(data, download_dir)
             
@@ -430,8 +410,6 @@ class SharePointReader(BasePydanticReader):
             
         logger.error(response.json()["error"])
         raise ValueError(response.json()["error"])
-
-        
 
     def _load_documents_with_metadata(
         self,

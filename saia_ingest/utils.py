@@ -79,7 +79,3 @@ def find_value_by_key(metadata_list, key):
         if key == item.get('key'):
             return item.get('value')
     return None
-
-if __name__ == '__main__':
-    files_with_status = search_failed_files('C:\\Users\\ABS 247\\Documents\\Develop\\saia-ingest\\sharepoint\\share', ['Success'])
-    dada = 'dad'
