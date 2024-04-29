@@ -575,6 +575,3 @@ def ingest_sharepoint(
         end_time = time.time()
         logging.getLogger().info(f"time: {end_time - start_time:.2f}s")
         return ret
-    
-if __name__ == '__main__':
-    ingest_sharepoint('C:\\Users\\ABS 247\\Documents\\Develop\\saia-ingest\\config.yaml', time.time())
