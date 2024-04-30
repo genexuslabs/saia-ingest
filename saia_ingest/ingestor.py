@@ -502,9 +502,6 @@ def ingest_sharepoint(
         upload_operation_log = saia_level.get('upload_operation_log', False)
         
         ragApi = RagApi(saia_base_url,saia_api_token, saia_profile)
-        
-        if not check_valid_profile(ragApi, saia_profile):
-            return False
 
         # Default to ingest directly to index
         loader = SharePointReader(
@@ -524,19 +521,20 @@ def ingest_sharepoint(
                 logging.getLogger().info(f"Checking for files to sync with {saia_profile} profile.")
                 docs_to_reprocess = search_failed_files(download_directory, reprocess_valid_status_list)
                 
-                logging.getLogger().info(f"Deleting files with status: {reprocess_valid_status_list}.")
-                with concurrent.futures.ThreadPoolExecutor(max_workers=max_parallel_executions) as executor:
-                    futures = [executor.submit(ragApi.delete_profile_document, saia_profile, d['id']) for d in docs_to_reprocess]
-                concurrent.futures.wait(futures)
+                if len(docs_to_reprocess) > 0:
+                    logging.getLogger().info(f"Deleting files with status: {reprocess_valid_status_list}.")
+                    with concurrent.futures.ThreadPoolExecutor(max_workers=max_parallel_executions) as executor:
+                        futures = [executor.submit(ragApi.delete_profile_document, saia_profile, d['id']) for d in docs_to_reprocess]
+                    concurrent.futures.wait(futures)
 
-                logging.getLogger().info(f"Downloading files from sharepoint.")
-                
-                with concurrent.futures.ThreadPoolExecutor(max_workers=max_parallel_executions) as executor:
-                    futures = [executor.submit(loader.download_file_by_id, d['name'], find_value_by_key(d['metadata'], 'file_id'), os.path.dirname(d['file_path'][0:(len('.saia.metadata'))*-1])) for d in docs_to_reprocess]
-                concurrent.futures.wait(futures)
+                    logging.getLogger().info(f"Downloading files from sharepoint.")
                     
-                files_to_upload = [d['file_path'][0:(len('.saia.metadata'))*-1] for d in docs_to_reprocess]
-                            
+                    with concurrent.futures.ThreadPoolExecutor(max_workers=max_parallel_executions) as executor:
+                        futures = [executor.submit(loader.download_file_by_id, d['name'], find_value_by_key(d['metadata'], 'file_id'), os.path.dirname(d['file_path'][0:(len('.saia.metadata'))*-1])) for d in docs_to_reprocess]
+                    concurrent.futures.wait(futures)
+                        
+                    files_to_upload = [d['file_path'][0:(len('.saia.metadata'))*-1] for d in docs_to_reprocess]
+
             else:
                 files = loader.download_files_from_folder(
                     sharepoint_site_name=sharepoint_site_name,
@@ -547,13 +545,14 @@ def ingest_sharepoint(
                 
                 files_to_upload = files.keys()
             
-            logging.getLogger().info(f"Uploading files to {saia_profile} profile.")
-            
-            with concurrent.futures.ThreadPoolExecutor(max_workers=max_parallel_executions) as executor:
-                futures = [executor.submit(saia_file_upload, saia_base_url, saia_api_token, saia_profile, file_item, True, '.metadata') for file_item in files_to_upload]
-            concurrent.futures.wait(futures)
-            
-            logging.getLogger().info("Upload finished.")
+            if len(files_to_upload) > 0:
+                logging.getLogger().info(f"Uploading files to {saia_profile} profile.")
+                
+                with concurrent.futures.ThreadPoolExecutor(max_workers=max_parallel_executions) as executor:
+                    futures = [executor.submit(saia_file_upload, saia_base_url, saia_api_token, saia_profile, file_item, True, '.metadata') for file_item in files_to_upload]
+                concurrent.futures.wait(futures)
+                
+                logging.getLogger().info("Upload finished.")
             
             if upload_operation_log:
                 end_time = time.time()
