@@ -78,11 +78,13 @@ def save_to_file(lc_documents, prefix='module'):
         file_path = os.path.join(debug_folder, filename)
         with open(file_path, 'w', encoding='utf8') as json_file:
             json.dump(serialized_docs, json_file, ensure_ascii=False, indent=4)
+        return file_path
     except Exception as e:
         logging.getLogger().error('save_to_file exception:', e)
 
 def ingest_jira(configuration: str) -> bool:
     ret = True
+    start_time = time.time()
     try:
         # Configuration
         config = get_yaml_config(configuration)
@@ -122,19 +124,44 @@ def ingest_jira(configuration: str) -> bool:
             logging.getLogger().warn('No documents found')
             return ret
 
-        save_to_file(lc_documents, prefix='jira')
+        docs_file = save_to_file(lc_documents, prefix='jira')
 
-        # Vectorstore
-        vectorstore_level = config.get('vectorstore', {})
-        vectorstore_api_key = vectorstore_level.get('api_key', None)
-        index_name = vectorstore_level.get('index_name', None)
+        # Saia
+        saia_level = config.get('saia', {})
+        saia_base_url = saia_level.get('base_url', None)
+        saia_api_token = saia_level.get('api_token', None)
+        saia_profile = saia_level.get('profile', None)
+        upload_operation_log = saia_level.get('upload_operation_log', False)
+    
+        if saia_base_url is not None:
 
-        jira_namespace = jira_level.get('namespace', None)
+            ragApi = RagApi(saia_base_url, saia_api_token, saia_profile)
 
-        os.environ['OPENAI_API_KEY'] = openapi_key
-        os.environ['PINECONE_API_KEY'] = vectorstore_api_key
+            target_file = f"{docs_file}.custom"
+            shutil.copyfile(docs_file, target_file)
 
-        ingest(lc_documents, openapi_key, index_name, jira_namespace, embeddings_model)
+            response_body = ragApi.upload_document_with_metadata_file(target_file) # ToDo check .metadata
+            if response_body is None:
+                logging.getLogger().error("Error uploading document")
+                return False
+            
+            if upload_operation_log:
+                end_time = time.time()
+                message_response = f"bulk ingest ({end_time - start_time:.2f}s)"
+                ret = operation_log_upload(saia_base_url, saia_api_token, saia_profile, "ALL", message_response, 0)
+
+        else:
+            ## Fallback to directly ingest to vectorstore
+            vectorstore_level = config.get('vectorstore', {})
+            vectorstore_api_key = vectorstore_level.get('api_key', None)
+            index_name = vectorstore_level.get('index_name', None)
+
+            jira_namespace = jira_level.get('namespace', None)
+
+            os.environ['OPENAI_API_KEY'] = openapi_key
+            os.environ['PINECONE_API_KEY'] = vectorstore_api_key
+
+            ingest(lc_documents, openapi_key, index_name, jira_namespace, embeddings_model)
 
     except Exception as e:
         logging.getLogger().error(f"Error: {e}")
@@ -148,6 +175,7 @@ def ingest_confluence(
     ) -> bool:
 
     ret = True
+    start_time = time.time()
     try:
         config = get_yaml_config(configuration)
         confluence_level = config.get('confluence', {})
@@ -199,14 +227,39 @@ def ingest_confluence(
 
         lc_documents = split_documents(documents, chunk_size=chunk_size, chunk_overlap=chunk_overlap)
 
-        save_to_file(lc_documents, prefix='confluence')
+        docs_file = save_to_file(lc_documents, prefix='confluence')
 
-        # Vectorstore
-        index_name = vectorstore_level.get('index_name', None)
+        # Saia
+        saia_level = config.get('saia', {})
+        saia_base_url = saia_level.get('base_url', None)
+        saia_api_token = saia_level.get('api_token', None)
+        saia_profile = saia_level.get('profile', None)
+        upload_operation_log = saia_level.get('upload_operation_log', False)
+    
+        if saia_base_url is not None:
 
-        logging.getLogger().info(f"Documents {documents.__len__()} Chunks {lc_documents.__len__()}")
+            ragApi = RagApi(saia_base_url, saia_api_token, saia_profile)
 
-        ingest(lc_documents, openapi_key, index_name, confluence_namespace, embeddings_model)
+            target_file = f"{docs_file}.custom"
+            shutil.copyfile(docs_file, target_file)
+
+            response_body = ragApi.upload_document_with_metadata_file(target_file) # ToDo check .metadata
+            if response_body is None:
+                logging.getLogger().error("Error uploading document")
+                return False
+            
+            if upload_operation_log:
+                end_time = time.time()
+                message_response = f"bulk ingest ({end_time - start_time:.2f}s)"
+                ret = operation_log_upload(saia_base_url, saia_api_token, saia_profile, "ALL", message_response, 0)
+
+        else:
+            ## Fallback to directly ingest to vectorstore
+            index_name = vectorstore_level.get('index_name', None)
+
+            logging.getLogger().info(f"Documents {documents.__len__()} Chunks {lc_documents.__len__()}")
+
+            ingest(lc_documents, openapi_key, index_name, confluence_namespace, embeddings_model)
 
     except Exception as e:
         logging.getLogger().error(f"Error: {e}")
@@ -216,6 +269,7 @@ def ingest_confluence(
 
 def ingest_github(configuration: str) -> bool:
     ret = True
+    start_time = time.time()
     try:
         config = get_yaml_config(configuration)
 
@@ -235,6 +289,13 @@ def ingest_github(configuration: str) -> bool:
         commit_sha = gh_level.get('commit_sha', None)
         namespace = gh_level.get('namespace', None)
         use_parser = gh_level.get('use_parser', False)
+
+        # Saia
+        saia_level = config.get('saia', {})
+        saia_base_url = saia_level.get('base_url', None)
+        saia_api_token = saia_level.get('api_token', None)
+        saia_profile = saia_level.get('profile', None)
+        upload_operation_log = saia_level.get('upload_operation_log', False)
 
         embeddings_level = config.get('embeddings', {})
         openapi_key = embeddings_level.get('openapi_key', None)
@@ -285,9 +346,28 @@ def ingest_github(configuration: str) -> bool:
         
         lc_documents = split_documents(documents, chunk_size=chunk_size, chunk_overlap=chunk_overlap)
 
-        save_to_file(lc_documents, prefix='github')
+        docs_file = save_to_file(lc_documents, prefix='github')
 
-        ingest(lc_documents, openapi_key, index_name, namespace, embeddings_model)
+        if saia_base_url is not None:
+
+            ragApi = RagApi(saia_base_url, saia_api_token, saia_profile)
+
+            target_file = f"{docs_file}.custom"
+            shutil.copyfile(docs_file, target_file)
+
+            response_body = ragApi.upload_document_with_metadata_file(target_file) # ToDo check .metadata
+            if response_body is None:
+                logging.getLogger().error("Error uploading document")
+                return False
+            
+            if upload_operation_log:
+                end_time = time.time()
+                message_response = f"bulk ingest ({end_time - start_time:.2f}s)"
+                ret = operation_log_upload(saia_base_url, saia_api_token, saia_profile, "ALL", message_response, 0)
+
+        else:
+            ## Fallback to directly ingest to vectorstore
+            ingest(lc_documents, openapi_key, index_name, namespace, embeddings_model)
 
     except Exception as e:
         logging.getLogger().error(f"Error: {type(e)} {e}")

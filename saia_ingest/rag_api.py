@@ -284,8 +284,11 @@ class RagApi:
         response_body = response.json()
         
         end_time = time.time()
-        message_response = f"{os.path.basename(file_path)},{response_body['indexStatus']},{response_body['name']},{response_body['id']},{end_time - start_time:.2f}"
-        
+        if response.ok:
+            message_response = f"{os.path.basename(file_path)},{response_body['indexStatus']},{response_body['name']},{response_body['id']},{end_time - start_time:.2f}"
+        else:
+            message_response = f"{os.path.basename(file_path)},Error,{response_body.get('errors')[0].get('id')},{response_body.get('errors')[0].get('description')}"
+
         logging.getLogger().info(message_response)
         
         return response_body

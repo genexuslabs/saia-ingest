@@ -14,6 +14,13 @@ confluence:
   include_children: !!bool true|false (default)
   cloud: !!bool true|false (default)
   namespace: !!str 'namespace name' # Must match the associated RAG assistant, check the index section
+saia:
+  base_url: !!str 'string' # GeneXus Enterprise AI Base URL
+  api_token: !!str 'string'
+  profile: !!str 'string' # Must match the RAG assistant ID
+  max_parallel_executions: !!int 5
+  upload_operation_log: !!bool False|True (default) # Check operations LOG for detail if enabled
+# Deprecated
 vectorstore:
   api_key: !!str 'check with the provider'
   index_name: !!str 'check with the provider'
