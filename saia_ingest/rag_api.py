@@ -163,12 +163,12 @@ class RagApi:
         If fpath is a json file path, it will create the RAG assistant with that information.
         If fpath is a folder path, it will create a RAG assistant for each json file in the folder.
         
-        Optionally, with the recursive flag, you can make the function go through all the subfolders
+        Optionally, with the recursive flag, you can make the function go through all the sub-folders
         creating RAG assistants for every json file that it found.
         
         Args:
             fpath     (str):            Path where the folder or config file is located.
-            recursive (Optional[bool]): If True, the function will go through every subfolder.
+            recursive (Optional[bool]): If True, the function will go through every sub-folder.
             
         Returns:
             A list with the created RAG assistants.

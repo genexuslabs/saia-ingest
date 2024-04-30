@@ -546,7 +546,7 @@ def ingest_sharepoint(
                 files_to_upload = files.keys()
             
             if len(files_to_upload) > 0:
-                logging.getLogger().info(f"Uploading files to {saia_profile} profile.")
+                logging.getLogger().info(f"Uploading files to {saia_profile}")
                 
                 with concurrent.futures.ThreadPoolExecutor(max_workers=max_parallel_executions) as executor:
                     futures = [executor.submit(saia_file_upload, saia_base_url, saia_api_token, saia_profile, file_item, True, '.metadata') for file_item in files_to_upload]
