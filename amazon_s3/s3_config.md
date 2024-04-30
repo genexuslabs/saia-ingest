@@ -12,12 +12,21 @@ s3: # contact the provider for the following information
   collection_name: !!str 'string'
   prefix: !!str 'string'
   url: 'string' # in general https://s3.console.aws.amazon.com
+  use_local_folder: !!bool True|False (default) # Skip S3 processing and use a local folder
+  local_folder: !!str 'string' # Full path to a folder
+  use_metadata_file: !!bool True|False (default) # Check if a local metadata file exists
+  use_augment_metadata: !!bool True|False (default) # Create new metadata based on the original
+  process_files: !!bool True|False (default) # Renaming files based on the document type.
+  required_exts: # list of required extensions, for example: txt, pdf, docx, pptx, xlsx
+  reprocess_failed_files: !!bool True|False (default) # Check if failed uploads needs to be reprocessed
+  reprocess_failed_files_file: !!str 'string' # Full path to a file
+  reprocess_valid_status_list: # List of Statuses to process, valid values Unknown, Starting, Failed, Pending, Success
 saia:
   base_url: !!str 'string' # GeneXus Enterprise AI Base URL
   api_token: !!str 'string'
   profile: !!str 'string' # Must match the RAG assistant ID
   max_parallel_executions: !!int 5
-  upload_operation_log: True # Check operations LOG for detail if enabled
+  upload_operation_log: !!bool False|True (default) # Check operations LOG for detail if enabled
 ```
 
 ### Execution
