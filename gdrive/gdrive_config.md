@@ -21,7 +21,7 @@ saia:
   api_token: !!str 'string'
   profile: !!str 'string' # Must match the RAG assistant ID
   max_parallel_executions: !!int 5
-  upload_operation_log: True # Check operations LOG for detail if enabled
+  upload_operation_log: !!bool False|True (default) # Check operations LOG for detail if enabled
 ```
 
 ### Execution
