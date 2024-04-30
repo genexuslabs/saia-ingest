@@ -20,7 +20,6 @@ def is_valid_profile(
                 'Authorization': f'Bearer {api_token}',
                 'Content-Type': DefaultHeaders.JSON_CONTENT_TYPE
             })
-        response_body = response.json()
         ret = response.ok
         if response.status_code != 200:
             logging.getLogger().info(f"{response.status_code}: {response.text}")
@@ -39,7 +38,6 @@ def is_valid_profile(
     finally:
         return ret
 
-
 def file_upload(
         base_url: str,
         api_token: str,
@@ -47,6 +45,7 @@ def file_upload(
         file_path: str,
         file_name: str = None,
         metadata_file: dict = None,
+        save_answer = False
     ) -> bool:
     ret = True
     try:
@@ -75,6 +74,9 @@ def file_upload(
             message_response = f"{response.status_code}: {response.text}"
             ret = False
         else:
+            if save_answer:
+                with open(file_path + '.saia.metadata', 'w') as file:
+                    file.write(json.dumps(response_body, indent=2))
             end_time = time.time()
             message_response = f"{file_name},{response_body['indexStatus']},{response_body['name']},{response_body['id']},{end_time - start_time:.2f}"
         logging.getLogger().info(message_response)
@@ -137,7 +139,6 @@ def operation_log_upload(
         ret = False
     finally:
         return ret
-    
 
 def file_delete(
         base_url: str,
@@ -171,7 +172,6 @@ def file_delete(
     finally:
         return ret
 
-
 def sync_failed_files(
         docs: list,
         local_folder: str,
@@ -202,7 +202,6 @@ def sync_failed_files(
     finally:
         logging.getLogger().info(f"To Delete: {len(to_delete)}: To Insert: {len(to_insert)}")
         return (to_delete, to_insert)
-
 
 def get_documents(
         base_url: str,

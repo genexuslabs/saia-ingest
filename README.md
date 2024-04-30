@@ -86,6 +86,7 @@ The configuration file details all parameters needed to run the ingestion, use t
  * `confluence` [config](./atlassian_confluence/confluence_config.md)
  * `github` [config](./docs/github_config.md)
  * `gdrive` Google Drive [config](./gdrive/gdrive_config.md)
+ * `sharepoint` [config](./sharepoint/sharepoint_config.md)
 
 ### Logging
 

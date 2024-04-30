@@ -10,7 +10,6 @@ def get_yaml_config(yaml_file):
         config = yaml.safe_load(file)
     return config
 
-
 def detect_file_extension(file_path):
     mime = magic.Magic()
 
@@ -33,17 +32,15 @@ def detect_file_extension(file_path):
         logging.getLogger().info(f"{file_path} unknown file type: {file_type}")
         return ""
 
-
 def change_file_extension(file_path, new_extension):
     base_path, _ = os.path.splitext(file_path)
     new_file_path = base_path + new_extension
     return new_file_path
 
-
-def get_metadata_file(file_path, file_name) -> dict:
+def get_metadata_file(file_path, file_name, metadata_extension =  '.json') -> dict:
     # Get the metadata file content
     ret = None
-    new_file_name = change_file_extension(file_name, '.json')
+    new_file_name = change_file_extension(file_name, metadata_extension)
     metadata_file = os.path.join(file_path, new_file_name)
     if os.path.isfile(metadata_file):
         ret = load_json_file(metadata_file)
@@ -57,3 +54,25 @@ def load_json_file(file_path) -> dict:
     except Exception as e:
         pass
     return ret
+
+def search_failed_files(directory, failed_status):
+    file_list = []
+    for root, _, files in os.walk(directory):
+        for file in files:
+            if file.endswith('.saia.metadata'):
+                file_path = os.path.join(root, file)
+                with open(file_path, 'r') as f:
+                    try:
+                        data = json.load(f)
+                        if data['indexStatus'] in failed_status:
+                            data['file_path'] = file_path 
+                            file_list.append(data)
+                    except json.JSONDecodeError:
+                        print(f"Error decoding JSON in file: {file_path}")
+    return file_list
+
+def find_value_by_key(metadata_list, key):
+    for item in metadata_list:
+        if key == item.get('key'):
+            return item.get('value')
+    return None

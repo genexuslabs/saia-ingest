@@ -6,7 +6,7 @@ from datetime import datetime, timezone, timedelta
 import logging
 from logging.handlers import RotatingFileHandler
 
-from ..ingestor import ingest_s3, ingest_jira, ingest_confluence, ingest_github, ingest_gdrive
+from ..ingestor import ingest_s3, ingest_jira, ingest_confluence, ingest_github, ingest_gdrive, ingest_sharepoint
 from ..log import AccumulatingLogHandler
 
 logging.basicConfig(level=logging.INFO)
@@ -45,6 +45,8 @@ def handle_ingest(
 
     if type == "s3":
         ret = ingest_s3(config_file, start_time, timestamp=timestamp)
+    elif type == "sharepoint":
+        ret = ingest_sharepoint(config_file, start_time)
     elif type == "jira":
         ret = ingest_jira(config_file)
     elif type == "confluence":
