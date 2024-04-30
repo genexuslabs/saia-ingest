@@ -26,6 +26,8 @@ from sharepoint.sharepoint_reader import SharePointReader
 
 from llama_hub.github_repo import GithubClient, GithubRepositoryReader
 
+from .config import DefaultVectorStore
+
 import logging
 import shutil
 
