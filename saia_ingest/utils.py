@@ -10,7 +10,6 @@ def get_yaml_config(yaml_file):
         config = yaml.safe_load(file)
     return config
 
-
 def detect_file_extension(file_path):
     mime = magic.Magic()
 
@@ -33,12 +32,10 @@ def detect_file_extension(file_path):
         logging.getLogger().info(f"{file_path} unknown file type: {file_type}")
         return ""
 
-
 def change_file_extension(file_path, new_extension):
     base_path, _ = os.path.splitext(file_path)
     new_file_path = base_path + new_extension
     return new_file_path
-
 
 def get_metadata_file(file_path, file_name, metadata_extension =  '.json') -> dict:
     # Get the metadata file content

@@ -7,11 +7,11 @@ import concurrent.futures
 
 #from llama_index import QueryBundle
 #from llama_index.retrievers import BaseRetriever
-from typing import Any, List
+#from typing import Any, List
 
 from langchain_openai import OpenAIEmbeddings
 from langchain_community.vectorstores import Pinecone
-from langchain.text_splitter import CharacterTextSplitter, RecursiveCharacterTextSplitter
+from langchain.text_splitter import RecursiveCharacterTextSplitter
 
 from saia_ingest.profile_utils import is_valid_profile, file_upload, file_delete, operation_log_upload, sync_failed_files
 from saia_ingest.rag_api import RagApi
@@ -51,13 +51,10 @@ def create_folder(path):
     if not os.path.exists(path):
         os.makedirs(path)
 
-def check_valid_profile(saia_base_url, saia_api_token, saia_profile):
-    ret = True
-    if saia_base_url is not None:
-        ret = is_valid_profile(saia_base_url, saia_api_token, saia_profile)
-        if ret is False:
-            logging.getLogger().error(f"Invalid profile {saia_profile}")
-            return ret
+def check_valid_profile(rag_api, profile_name):
+    ret = rag_api.is_valid_profile(profile_name)
+    if not ret:
+        logging.getLogger().error(f"Invalid profile {profile_name}")
     return ret
 
 def save_to_file(lc_documents, prefix='module'):
@@ -506,7 +503,7 @@ def ingest_sharepoint(
         
         ragApi = RagApi(saia_base_url,saia_api_token, saia_profile)
         
-        if not check_valid_profile(saia_base_url, saia_api_token, saia_profile):
+        if not check_valid_profile(ragApi, saia_profile):
             return False
 
         # Default to ingest directly to index
