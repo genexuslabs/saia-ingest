@@ -14,16 +14,16 @@ DELETE_METHOD = "DELETE"
 class RagApi:
     """Rag Api.
 
-    This class provide a way to prgramatically communicate with the RAG's functions that are provided
-    by the following api (https://wiki.genexus.com/enterprise-ai/wiki?29,GeneXus+Enterprise+AI+RAG+Assistants+API) belongin to genexus IA. 
+    This class provide a way to programmatically communicate with the RAG's functions that are provided
+    by the following api (https://wiki.genexus.com/enterprise-ai/wiki?29)
 
     Args:
         base_url (str):     The base URL for your GeneXus Enterprise AI installation
         api_token (str):    Token provided by the environment that allow the communication with the API.
-                            Please check: https://wiki.genexus.com/enterprise-ai/wiki?20,GeneXus+Enterprise+AI+API+Reference
+                            Please check: https://wiki.genexus.com/enterprise-ai/wiki?20
         profile (str):      A specific RAG assistant name.
         
-        max_parallel_executions (Optional[str]): The maximun parallel execution allowed. Default 5
+        max_parallel_executions (Optional[str]): The maximum parallel execution allowed. Default 5
     """
     def __init__(self, base_url, api_token, profile, max_parallel_executions = 5):
         """
@@ -32,38 +32,38 @@ class RagApi:
         Raises:
             ValueError: If there is an error with the values provided.
         """
-        
+
         if not base_url:
             raise ValueError('Invalid value: base_url')
         
         if not api_token:
             raise ValueError('Invalid value: api_token')
-        
-        if profile and not self.is_valid_profile(profile):
-            raise ValueError('Invalid value: profile')
-        
+
         self.api_token = api_token
         self.base_url = base_url
         self.profile = profile
-        
         self.max_parallel_executions = max_parallel_executions
         self.base_header = {
             "Authorization": f"Bearer {self.api_token}",
             "Accept": "application/json"
         }
-        
+
+        if profile and not self.is_valid_profile(profile):
+            raise ValueError('Invalid value: profile')
+
+
     def set_profile(self, profile_name):
         """
         Set the profile that the Rag_Api will use in some functions as default.
 
         Args:
-            profile_name (str): The name of the profile to be setted.
+            profile_name (str): The name of the RAG assistant to be set.
 
         Returns:
             bool: The change was done correctly.
 
         Raises:
-            ValueError: If the profile provided is not valid.
+            ValueError: If the RAG assistant provided is not valid.
         """
         if profile_name and not self.is_valid_profile(profile_name):
             raise ValueError('Invalid value: profile')
@@ -101,7 +101,7 @@ class RagApi:
         Get RAG Assistant details with the name provided.
         
         Args:
-            profile_name (str): Name of the profile from which we want information
+            profile_name (str): Name of the RAG assistant from which we want information
         
         '''
         url = f"{self.base_url}/v1/search/profile/{profile_name}"
@@ -110,10 +110,10 @@ class RagApi:
 
     def is_valid_profile(self, profile_name):
         '''
-        Returns True if the profile provided is a valid profile.
+        Returns True if the RAG assistant is valid.
         
         Args:
-            profile_name (str): Name of the profile from which we want information
+            profile_name (str): Name of the RAG assistant from which we want information
         
         '''
         response = self.get_profile(profile_name)
@@ -124,10 +124,10 @@ class RagApi:
     def get_profile_documents(self, profile_name='', skip=None, count=10):
         '''
         List the documents for a RAG Assistant. If profile_name is not provided,
-        it will use the one setted in the Rag_Api as default.
+        it will use the one set in the Rag_Api as default.
         
         Args:
-            profile_name (Optional[str]): Name of the profile from which we want information Default self.profile
+            profile_name (Optional[str]): Name of the RAG assistant from which we want information. Default self.profile
             skip         (Optional[str]): Number of documents to skip
             count        (Optional[str]): Number of documents to return
             
@@ -149,7 +149,7 @@ class RagApi:
         
         Args:
             document_id  (str):           Id of the document from which we want information
-            profile_name (Optional[str]): Name of the profile that we want to update. Default self.profile
+            profile_name (Optional[str]): Name of the RAG assistant to get information. Default self.profile
         
         '''
         name = profile_name or self.profile
@@ -159,19 +159,19 @@ class RagApi:
     
     def post_profiles(self, fpath, recursive = False):
         '''
-        Given a path, it will create profiles accordingly in the environment.
-        If fpath is a json file path, it will create the profile with that information.
-        If fpath is a folder path, it will create a profile for each json file in the folder.
+        Given a path, it will create RAG assistants accordingly in the environment.
+        If fpath is a json file path, it will create the RAG assistant with that information.
+        If fpath is a folder path, it will create a RAG assistant for each json file in the folder.
         
         Optionally, with the recursive flag, you can make the function go through all the subfolders
-        creating profiles for every json file that it found.
+        creating RAG assistants for every json file that it found.
         
         Args:
             fpath     (str):            Path where the folder or config file is located.
-            recursive (Optional[bool]): If True, the function will go throuth every subfolder.
+            recursive (Optional[bool]): If True, the function will go through every subfolder.
             
         Returns:
-            A list with the profiles information that were created.
+            A list with the created RAG assistants.
         
         '''
         
@@ -197,7 +197,7 @@ class RagApi:
         
         Args:
             update_data (str):             Json string that contains the new information.
-            profile_name (Optional[str]):  Name of the profile that we want to update. Default self.profile
+            profile_name (Optional[str]):  Name of the RAG assistant we want to update. Default self.profile
         '''
         name = profile_name or self.profile
         url = f"{self.base_url}/v1/search/profile/{name}"
@@ -209,7 +209,7 @@ class RagApi:
         Delete a RAG Assistant.
         
         Args:
-            profile_name (Optional[str]):  Name of the profile that we want to update. Default self.profile
+            profile_name (Optional[str]):  Name of the RAG assistant we want to update. Default self.profile
         '''
         name = profile_name or self.profile
         url = f"{self.base_url}/v1/search/profile/{name}"
@@ -221,7 +221,7 @@ class RagApi:
         Delete a document associated to a RAG Assistant.
         
         Args:
-            profile_name (Optional[str]):  Name of the profile that we want to update. Default self.profile
+            profile_name (Optional[str]):  Name of the RAG assistant we want to update. Default self.profile
         '''
         name = profile_name or self.profile
         url = f"{self.base_url}/v1/search/profile/{name}/document/{id}"
@@ -234,8 +234,8 @@ class RagApi:
         
         Args:
             file_path    (str):            Path of the document in the local file system.
-            content_type (Optional[str]):  Content type to be send in the headers of the recuests. Default application/pdf.
-            profile_name (Optional[str]):  Name of the profile that we want to update. Default self.profile
+            content_type (Optional[str]):  Content type to be send in the headers of the request. Default application/pdf.
+            profile_name (Optional[str]):  Name of the RAG assistant we want to update. Default self.profile
         '''
         name = profile_name or self.profile
         url = f"{self.base_url}/v1/search/profile/{name}/document"
@@ -264,7 +264,7 @@ class RagApi:
             metadata     (Optional[str]):  Metadata of the file to be upload. If it is a path, the metadata will be
                                            upload from the json file provided.
                                            If metadata is not a path, it is supposed to be a json format string.
-            profile_name (Optional[str]):  Name of the profile that we want to update. Default self.profile
+            profile_name (Optional[str]):  Name of the RAG assistant we want to update. Default self.profile
         '''
         profile = profile_name or self.profile
         
@@ -292,7 +292,7 @@ class RagApi:
 
     def delete_all_documents(self):
         '''
-        Delete all documents related to the self.profile Asistant.
+        Delete all documents related to the self.profile Assistant.
         '''
         if self.profile:
             docs = self.get_profile_documents(self.profile)
