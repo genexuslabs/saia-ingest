@@ -12,18 +12,65 @@ PUT_METHOD = "PUT"
 DELETE_METHOD = "DELETE"
 
 class RagApi:
-    def __init__(self, base_url, api_token, profile = '', max_parallel_executions = 5):
-        self.base_url = base_url
+    """Rag Api.
+
+    This class provide a way to prgramatically communicate with the RAG's functions that are provided
+    by the following api (https://wiki.genexus.com/enterprise-ai/wiki?29,GeneXus+Enterprise+AI+RAG+Assistants+API) belongin to genexus IA. 
+
+    Args:
+        base_url (str):     The base URL for your GeneXus Enterprise AI installation
+        api_token (str):    Token provided by the environment that allow the communication with the API.
+                            Please check: https://wiki.genexus.com/enterprise-ai/wiki?20,GeneXus+Enterprise+AI+API+Reference
+        profile (str):      A specific RAG assistant name.
+        
+        max_parallel_executions (Optional[str]): The maximun parallel execution allowed. Default 5
+    """
+    def __init__(self, base_url, api_token, profile, max_parallel_executions = 5):
+        """
+        Inits a Rag_api instance.
+
+        Raises:
+            ValueError: If there is an error with the values provided.
+        """
+        
+        if not base_url:
+            raise ValueError('Invalid value: base_url')
+        
+        if not api_token:
+            raise ValueError('Invalid value: api_token')
+        
+        if profile and not self.is_valid_profile(profile):
+            raise ValueError('Invalid value: profile')
+        
         self.api_token = api_token
+        self.base_url = base_url
+        self.profile = profile
+        
         self.max_parallel_executions = max_parallel_executions
         self.base_header = {
             "Authorization": f"Bearer {self.api_token}",
             "Accept": "application/json"
         }
         
-        self.profile = profile if profile and self.is_valid_profile(profile) else ''
-        
-    def do_request(self, method, url='', headers=None, params=None, data=None, files=None, json=None):
+    def set_profile(self, profile_name):
+        """
+        Set the profile that the Rag_Api will use in some functions as default.
+
+        Args:
+            profile_name (str): The name of the profile to be setted.
+
+        Returns:
+            bool: The change was done correctly.
+
+        Raises:
+            ValueError: If the profile provided is not valid.
+        """
+        if profile_name and not self.is_valid_profile(profile_name):
+            raise ValueError('Invalid value: profile')
+        self.profile = profile_name
+        return True
+    
+    def _do_request(self, method, url='', headers=None, params=None, data=None, files=None, json=None):
         response = None
         try:
             response = requests.request(method, url, headers=headers, params=params, data=data, files=files, json=json)
@@ -41,69 +88,156 @@ class RagApi:
             return response
         
     def search_profiles(self):
+        '''
+        Retrieve all the RAG Assistants for a Project.
+        '''
+        
         url = f"{self.base_url}/v1/search/profiles"
-        response = self.do_request(GET_METHOD, url, headers=self.base_header)
+        response = self._do_request(GET_METHOD, url, headers=self.base_header)
         return response.json()
 
-    def get_profile(self, name):
-        url = f"{self.base_url}/v1/search/profile/{name}"
-        response = self.do_request(GET_METHOD, url, headers=self.base_header)
+    def get_profile(self, profile_name):
+        '''
+        Get RAG Assistant details with the name provided.
+        
+        Args:
+            profile_name (str): Name of the profile from which we want information
+        
+        '''
+        url = f"{self.base_url}/v1/search/profile/{profile_name}"
+        response = self._do_request(GET_METHOD, url, headers=self.base_header)
         return response.json()
 
-    def is_valid_profile(self, name):
-        response = self.get_profile(name)
+    def is_valid_profile(self, profile_name):
+        '''
+        Returns True if the profile provided is a valid profile.
+        
+        Args:
+            profile_name (str): Name of the profile from which we want information
+        
+        '''
+        response = self.get_profile(profile_name)
         ret = not 'errors' in response
-        logging.getLogger().info(f'{name} is a valid profile.' if ret else f'Profile {name} not found.')
+        logging.getLogger().info(f'{profile_name} is a valid profile.' if ret else f'Profile {profile_name} not found.')
         return ret
 
-    def get_profile_documents(self, name, skip=None, count=1000):
+    def get_profile_documents(self, profile_name='', skip=None, count=10):
+        '''
+        List the documents for a RAG Assistant. If profile_name is not provided,
+        it will use the one setted in the Rag_Api as default.
+        
+        Args:
+            profile_name (Optional[str]): Name of the profile from which we want information Default self.profile
+            skip         (Optional[str]): Number of documents to skip
+            count        (Optional[str]): Number of documents to return
+            
+        '''
+        name = profile_name or self.profile
+        
         url = f"{self.base_url}/v1/search/profile/{name}/documents"
         params = {}
         if skip:
             params["skip"] = skip
         if count:
             params["count"] = count
-        response = self.do_request(GET_METHOD, url, headers=self.base_header, params=params)
+        response = self._do_request(GET_METHOD, url, headers=self.base_header, params=params)
         return response.json()
 
-    def get_document(self, name, document_id):
+    def get_document(self, document_id, profile_name=''):
+        '''
+        Gets details about the document with the id provided.
+        
+        Args:
+            document_id  (str):           Id of the document from which we want information
+            profile_name (Optional[str]): Name of the profile that we want to update. Default self.profile
+        
+        '''
+        name = profile_name or self.profile
         url = f"{self.base_url}/v1/search/profile/{name}/document/{document_id}"
-        response = self.do_request(GET_METHOD, url, headers=self.base_header)
+        response = self._do_request(GET_METHOD, url, headers=self.base_header)
         return response.json()
     
-    def post_profile(self, fpath):
-        print(fpath)
+    def post_profiles(self, fpath, recursive = False):
+        '''
+        Given a path, it will create profiles accordingly in the environment.
+        If fpath is a json file path, it will create the profile with that information.
+        If fpath is a folder path, it will create a profile for each json file in the folder.
+        
+        Optionally, with the recursive flag, you can make the function go through all the subfolders
+        creating profiles for every json file that it found.
+        
+        Args:
+            fpath     (str):            Path where the folder or config file is located.
+            recursive (Optional[bool]): If True, the function will go throuth every subfolder.
+            
+        Returns:
+            A list with the profiles information that were created.
+        
+        '''
+        
         ret = []
         if os.path.isfile(fpath):
-            with open(fpath, 'r') as file:
-                data = json.load(file)
-                url = f"{self.base_url}/v1/search/profile"
-                response = self.do_request(POST_METHOD, url, json=data, headers=self.base_header)
-                ret.append(response.json())
-        elif os.path.isdir(fpath):
-            for filename in os.listdir(fpath):
-                if filename.endswith('.json') or os.path.isdir(os.path.join(fpath, filename)):
-                    ret = ret + self.post_profile(os.path.join(fpath, filename))          
+            try:
+                with open(fpath, 'r') as file:
+                    data = json.load(file)
+                    url = f"{self.base_url}/v1/search/profile"
+                    response = self._do_request(POST_METHOD, url, json=data, headers=self.base_header)
+                    ret.append(response.json())
+            except:
+                logging.getLogger().info(f"Invalid config file at {fpath}.")
         else:
-            raise ValueError("Invalid file path")
+            for filename in os.listdir(fpath):
+                if filename.endswith('.json') or (recursive and os.path.isdir(os.path.join(fpath, filename))):
+                    ret = ret + self.post_profiles(os.path.join(fpath, filename))
         return ret
     
-    def update_profile(self, name, update_data):
+    def update_profile(self, update_data, profile_name = ''):
+        '''
+        Update a RAG Assistant.
+        
+        Args:
+            update_data (str):             Json string that contains the new information.
+            profile_name (Optional[str]):  Name of the profile that we want to update. Default self.profile
+        '''
+        name = profile_name or self.profile
         url = f"{self.base_url}/v1/search/profile/{name}"
-        response = self.do_request(PUT_METHOD, url, json=update_data, headers=self.base_header)
+        response = self._do_request(PUT_METHOD, url, json=update_data, headers=self.base_header)
         return response.json()
     
-    def delete_profile(self, name):
+    def delete_profile(self, profile_name = ''):
+        '''
+        Delete a RAG Assistant.
+        
+        Args:
+            profile_name (Optional[str]):  Name of the profile that we want to update. Default self.profile
+        '''
+        name = profile_name or self.profile
         url = f"{self.base_url}/v1/search/profile/{name}"
-        response = self.do_request(DELETE_METHOD, url, headers=self.base_header)
+        response = self._do_request(DELETE_METHOD, url, headers=self.base_header)
         return response.json()
     
-    def delete_profile_document(self, name, id):
+    def delete_profile_document(self, id, profile_name = ''):
+        '''
+        Delete a document associated to a RAG Assistant.
+        
+        Args:
+            profile_name (Optional[str]):  Name of the profile that we want to update. Default self.profile
+        '''
+        name = profile_name or self.profile
         url = f"{self.base_url}/v1/search/profile/{name}/document/{id}"
-        response = self.do_request(DELETE_METHOD, url, headers=self.base_header)
+        response = self._do_request(DELETE_METHOD, url, headers=self.base_header)
         return response.json()
 
-    def upload_document_binary(self, name, file_path, content_type):
+    def upload_document_binary(self, file_path, content_type = 'application/pdf', profile_name = ''):
+        '''
+        Upload a document as binary.
+        
+        Args:
+            file_path    (str):            Path of the document in the local file system.
+            content_type (Optional[str]):  Content type to be send in the headers of the recuests. Default application/pdf.
+            profile_name (Optional[str]):  Name of the profile that we want to update. Default self.profile
+        '''
+        name = profile_name or self.profile
         url = f"{self.base_url}/v1/search/profile/{name}/document"
         headers = {
             "filename": os.path.basename(file_path),
@@ -111,31 +245,41 @@ class RagApi:
         }
         headers.update(self.base_header)
         with open(file_path, 'rb') as file:
-            response = self.do_request(POST_METHOD, url, headers=headers, data=file)
+            response = self._do_request(POST_METHOD, url, headers=headers, data=file)
         return response.json()    
     
-    def is_valid_json(self, my_json):
+    def _is_valid_json(self, my_json):
         try:
             json_object = json.loads(my_json)
         except ValueError as e:
             return None
         return json_object
     
-    def upload_document_with_metadata_file(self, file_path, metadata = None, profile = ''):
-        profile_name = profile or self.profile
+    def upload_document_with_metadata_file(self, file_path, metadata = None, profile_name = ''):
+        '''
+        Upload a document as multipart.
         
-        url = f"{self.base_url}/v1/search/profile/{profile_name}/document"
+        Args:
+            file_path    (str):            Path of the document in the local file system.
+            metadata     (Optional[str]):  Metadata of the file to be upload. If it is a path, the metadata will be
+                                           upload from the json file provided.
+                                           If metadata is not a path, it is supposed to be a json format string.
+            profile_name (Optional[str]):  Name of the profile that we want to update. Default self.profile
+        '''
+        profile = profile_name or self.profile
+        
+        url = f"{self.base_url}/v1/search/profile/{profile}/document"
         start_time = time.time()
         files = {
             'file': open(file_path, 'rb')
         }
         data = None
-        if metadata and self.is_valid_json(metadata):
+        if metadata and self._is_valid_json(metadata):
             data = {'metadata': metadata}
         else:
             if metadata and os.path.exists(metadata):
                 files.update({'metadata': open(metadata, 'r')})
-        response = self.do_request(POST_METHOD, url, headers=self.base_header, data=data, files=files)
+        response = self._do_request(POST_METHOD, url, headers=self.base_header, data=data, files=files)
         
         response_body = response.json()
         
@@ -147,6 +291,9 @@ class RagApi:
         return response_body
 
     def delete_all_documents(self):
+        '''
+        Delete all documents related to the self.profile Asistant.
+        '''
         if self.profile:
             docs = self.get_profile_documents(self.profile)
             with concurrent.futures.ThreadPoolExecutor(max_workers=self.max_parallel_executions) as executor:
