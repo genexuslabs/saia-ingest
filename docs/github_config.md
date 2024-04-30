@@ -32,8 +32,8 @@ vectorstore:
   index_name: !!str 'check with the provider'
 embeddings:
   openapi_key: !!str 'check with the provider' # Or use your own
-  chunk_size: !!int integer # 1000 by default
-  chunk_overlap: !!int integer # 100 by default
+  chunk_size: !!int integer # DefaultVectorStore.CHUNK_SIZE by default
+  chunk_overlap: !!int integer # DefaultVectorStore.CHUNK_OVERLAP by default
   model: !!str name # defaults to text-embedding-ada-002
 ```
 

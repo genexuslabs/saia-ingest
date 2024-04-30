@@ -305,7 +305,6 @@ class GoogleDriveReader(BaseReader):
                     }
                     file_paths.append(final_filepath)
                     ## TODO generate metadata
-            logger.warning("TODO generate metadata file for each downloaded file")
         except Exception as e:
             logger.error(
                 "An error occurred while getting files: {}".format(e)
