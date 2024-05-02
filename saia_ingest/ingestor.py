@@ -460,7 +460,7 @@ def ingest_s3(
                 # Clean files with failed state, re upload
                 local_file = s3_level.get('reprocess_failed_files_file', None)
                 docs = load_json_file(local_file)
-                to_delete, file_paths = sync_failed_files(docs['documents'], local_folder, reprocess_valid_status_list)
+                to_delete, file_paths = sync_failed_files(docs['documents'], local_folder, reprocess_valid_status_list, timestamp)
 
                 with concurrent.futures.ThreadPoolExecutor(max_workers=max_parallel_executions) as executor:
                     futures = [executor.submit(file_delete, saia_base_url, saia_api_token, saia_profile, d) for d in to_delete]

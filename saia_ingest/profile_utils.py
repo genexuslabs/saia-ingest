@@ -1,5 +1,6 @@
 import os
 import time
+from datetime import datetime, timezone
 import logging
 import requests
 import json
@@ -176,6 +177,7 @@ def sync_failed_files(
         docs: list,
         local_folder: str,
         reprocess_valid_status_list: list = [],
+        timestamp: datetime = None
     ) -> (list[str], list[str]):
     ret = True
     to_delete = []
@@ -187,8 +189,13 @@ def sync_failed_files(
             extension = f.get('extension', None)
             status = f.get('indexStatus', None)
             status_detail = f.get('indexDetail', '')
+            doc_timestamp_str = f.get('timestamp', None)
 
             if status_detail == 'Invalid content':
+                continue
+
+            doc_timestamp = datetime.fromisoformat(doc_timestamp_str).replace(tzinfo=timezone.utc)
+            if doc_timestamp < timestamp:
                 continue
 
             if status in reprocess_valid_status_list:
