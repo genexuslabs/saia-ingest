@@ -71,7 +71,7 @@ def file_upload(
         # TODO: map the document to the ID and save it
         ret = response.ok
         if response.status_code != 200:
-            message_response = f"{response.status_code}: {response.text}"
+            message_response = f"{file_name},Error,{response.status_code}: {response.text}"
             ret = False
         else:
             if save_answer:
