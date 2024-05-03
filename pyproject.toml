@@ -75,7 +75,7 @@ pyzmq = "^25.1.2"
 regex = "^2022.10.31"
 tiktoken = "^0.5.2"
 tokenizers = "^0.15.0"
-tqdm = "^4.66.1"
+tqdm = "^4.66.3"
 python-magic = { version = "^0.4.27", platform = "linux"}
 python-magic-bin = {version = "^0.4.14", platform = "win32"}
 google-auth-oauthlib = "^1.2.0"
