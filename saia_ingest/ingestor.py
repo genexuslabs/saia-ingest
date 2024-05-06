@@ -26,7 +26,7 @@ from sharepoint.sharepoint_reader import SharePointReader
 
 from llama_hub.github_repo import GithubClient, GithubRepositoryReader
 
-from .config import DefaultVectorStore
+from saia_ingest.config import DefaultVectorStore
 
 import logging
 import shutil
@@ -599,9 +599,9 @@ def ingest_sharepoint(
         client_secret= sharepoint_level.get('client_secret', None) 
         tenant_id= sharepoint_level.get('tenant_id', None) 
         sharepoint_site_name= sharepoint_level.get('sharepoint_site_name', None) 
-        sharepoint_folder_path= sharepoint_level.get('sharepoint_folder_path', None) 
+        sharepoint_drives_names = sharepoint_level.get('sharepoint_drives_names', None) 
         download_dir = sharepoint_level.get('download_dir', None) 
-        recursive= sharepoint_level.get('recursive', None)
+        deph= sharepoint_level.get('deph', 0)
         reprocess_failed_files = sharepoint_level.get('reprocess_failed_files', False)
         reprocess_valid_status_list = sharepoint_level.get('reprocess_valid_status_list', [])
     
@@ -621,7 +621,7 @@ def ingest_sharepoint(
             client_secret=client_secret,
             tenant_id=tenant_id,
             sharepoint_site_name = sharepoint_site_name,
-            sharepoint_folder_path = sharepoint_folder_path
+            sharepoint_drives_names = sharepoint_drives_names
         )
         
         download_directory = download_dir if download_dir else tempfile.TemporaryDirectory().name        
@@ -648,12 +648,20 @@ def ingest_sharepoint(
                     files_to_upload = [d['file_path'][0:(len('.saia.metadata'))*-1] for d in docs_to_reprocess]
 
             else:
-                files = loader.download_files_from_folder(
-                    sharepoint_site_name=sharepoint_site_name,
-                    sharepoint_folder_path=sharepoint_folder_path,
-                    recursive=recursive,
-                    download_dir = download_directory
-                )
+                
+                if not sharepoint_drives_names:
+                    logging.getLogger().error(f"No drive selected.")
+                files = {}
+                for drive in sharepoint_drives_names:
+                    drive_download_path = os.path.join(download_directory, drive)
+                    drive_files = loader.download_files_from_folder(
+                        sharepoint_site_name=sharepoint_site_name,
+                        sharepoint_drive_name=drive,
+                        sharepoint_folder_path=sharepoint_drives_names[drive],
+                        deph=deph,
+                        download_dir = drive_download_path
+                    )
+                    files.update(drive_files)
                 
                 files_to_upload = files.keys()
             
@@ -683,3 +691,6 @@ def ingest_sharepoint(
         end_time = time.time()
         logging.getLogger().info(f"time: {end_time - start_time:.2f}s")
         return ret
+
+if __name__ == '__main__':
+    ingest_sharepoint('C:\\Users\\ABS 247\\Documents\\Develop\\saia-ingest\\config.yaml', time.time())
