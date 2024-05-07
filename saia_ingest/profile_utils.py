@@ -177,6 +177,7 @@ def sync_failed_files(
         docs: list,
         local_folder: str,
         reprocess_valid_status_list: list = [],
+        reprocess_status_detail_list_contains: list = [],
         timestamp: datetime = None
     ) -> (list[str], list[str]):
     ret = True
@@ -199,6 +200,14 @@ def sync_failed_files(
                 continue
 
             if status in reprocess_valid_status_list:
+                if reprocess_status_detail_list_contains is not None:
+                    found = False
+                    for item in reprocess_status_detail_list_contains:
+                        if item in status_detail:
+                            found = True
+                    if not found:
+                        continue
+
                 to_delete.append(id)
                 name_with_extension = f"{name}.{extension}"
                 to_insert.append(os.path.join(local_folder, name_with_extension))
