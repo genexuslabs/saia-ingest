@@ -59,3 +59,4 @@ notebooks/
 debug/
 config/
 launch.json
+.secrets
