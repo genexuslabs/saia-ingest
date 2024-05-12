@@ -1,17 +1,12 @@
 import pytest
-
 import requests
 import json
 
-from saia_ingest.utils import get_yaml_config
-
-configuration = "config/sandbox.yaml"
 
 @pytest.fixture
-def config() -> dict:
+def config(configuration) -> dict:
 
-  config = get_yaml_config(configuration)
-  saia_level = config.get('saia', {})
+  saia_level = configuration.get('saia', {})
   saia_base_url = saia_level.get('base_url', None)
   saia_api_token = saia_level.get('api_token', None)
 
@@ -30,8 +25,11 @@ def test_proxy(config):
   https://wiki.genexus.com/enterprise-ai/wiki?19,GeneXus+Enterprise+AI+Proxy
   '''
 
+  base_url = config.get('base_url')
+  api_token = config.get('api_token')
+
   # generate an image with dall-e
-  url = f"{config.get('base_url')}/proxy/openai/v1/images/generations"
+  url = f"{base_url}/proxy/openai/v1/images/generations"
 
   payload = {
     "model": "dall-e-2",
@@ -40,7 +38,7 @@ def test_proxy(config):
   }
   headers = {
     'Content-Type': 'application/json',
-    'Authorization': f"Bearer {config.get('api_token')}",
+    'Authorization': f"Bearer {api_token}",
   }
 
   result = requests.post(url, headers=headers, json=payload)
@@ -58,7 +56,7 @@ def test_proxy(config):
 
 
   # completions
-  url = f"{config.get('base_url')}/proxy/openai/v1/chat/completions"
+  url = f"{base_url}/proxy/openai/v1/chat/completions"
 
   payload = {
     "model": "gpt-3.5-turbo",
@@ -69,7 +67,7 @@ def test_proxy(config):
   }
   headers = {
     'Content-Type': 'application/json',
-    'Authorization': f"Bearer {config.get('api_token')}",
+    'Authorization': f"Bearer {api_token}",
   }
 
   result = requests.post(url, headers=headers, json=payload)

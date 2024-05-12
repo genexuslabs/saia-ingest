@@ -5,19 +5,14 @@
 
 import pytest
 import logging
-#logger = logging.getLogger(__name__)
 
-from saia_ingest.utils import get_yaml_config
 from saia_ingest.assistant_utils import get_assistants, get_assistant
 
 
-configuration = "config/sandbox.yaml"
-
 @pytest.fixture
-def config() -> dict:
+def config(configuration) -> dict:
 
-    config = get_yaml_config(configuration)
-    saia_level = config.get('saia', {})
+    saia_level = configuration.get('saia', {})
     saia_base_url = saia_level.get('base_url', None)
     saia_api_token = saia_level.get('api_token', None)
 
@@ -32,14 +27,16 @@ def config() -> dict:
 
 def test_assistants(config):
 
-    result = get_assistants(config.get('base_url'), config.get('api_token'))
+    base_url = config.get('base_url')
+    api_token = config.get('api_token')
+    result = get_assistants(base_url, api_token)
 
     assert result, "No result was returned"
 
     for item in result:
         assistant_id = item['assistantId']
 
-        assistant = get_assistant(config.get('base_url'), config.get('api_token'), assistant_id)
+        assistant = get_assistant(base_url, api_token, assistant_id)
 
         name = assistant.get('assistantName')
         type = assistant.get('assistantType')
