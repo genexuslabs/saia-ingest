@@ -1,3 +1,5 @@
+[![pytest](https://github.com/genexuslabs/saia-ingest/actions/workflows/pytest.yml/badge.svg)](https://github.com/genexuslabs/saia-ingest/actions/workflows/pytest.yml)
+
 Welcome to the [GeneXus Enterprise AI](./EnterpriseAISuite.md) Ingest utilities package, codename `saia-ingest`.
 
 It's purpose is to provide sample code to connect to different data sources and help external developers to interact with the platform to upload documents. Check the [configuration](#configuration) section to know the available data-sources.
