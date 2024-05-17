@@ -300,7 +300,7 @@ class RagApi:
         if self.profile:
             docs = self.get_profile_documents(self.profile)
             with concurrent.futures.ThreadPoolExecutor(max_workers=self.max_parallel_executions) as executor:
-                    futures = [executor.submit(self.delete_profile_document, self.profile, d['id']) for d in docs['documents']]
+                    futures = [executor.submit(self.delete_profile_document, d['id'], self.profile) for d in docs['documents']]
             concurrent.futures.wait(futures)
         
     

@@ -3,16 +3,10 @@
 
 import logging
 import os
-import tempfile
 import json
-from typing import Any, Dict, List, Union, Optional
 from typing import Any, Dict, List, Optional
-
+from datetime import datetime
 import requests
-from llama_index.readers import SimpleDirectoryReader
-from llama_index.readers.base import BaseReader, BasePydanticReader
-from llama_index.schema import Document
-from llama_index.bridge.pydantic import PrivateAttr, Field
 from saia_ingest.utils import change_file_extension
 
 logger = logging.getLogger(__name__)
@@ -22,7 +16,7 @@ class SharePointReader:
     """SharePoint reader.
 
 
-    Reads folders from the SharePoint site from a folder under documents.
+    Reads folders from the SharePoint site.
 
     Args:
         client_id (str): The Application ID for the app registered in Microsoft Azure Portal.
@@ -31,6 +25,9 @@ class SharePointReader:
         tenant_id (str): Unique identifier of the Azure Active Directory Instance.
         sharepoint_site_name (Optional[str]): The name of the SharePoint site to download from.
         sharepoint_drives_names (Optional[Dict[str,str]]): A dictionary with drives names as keys and folder paths related to that drive as values.
+        sharepoint_metadata_policy (Optional[Dict[str, List[str]]]): Indicates how to select the metadata to save. If include key has True value, the
+                                                                    values in the fileds key are keys from the custom metadata to be included. If the
+                                                                    include key is False, they are exluded.
     """
 
     client_id: str = None
@@ -52,15 +49,15 @@ class SharePointReader:
         tenant_id: str,
         sharepoint_site_name: Optional[str] = None,
         sharepoint_drives_names: Optional[str] = None,
-        file_extractor: Optional[Dict[str, Union[str, BaseReader]]] = None,
+        sharepoint_metadata_policy: Optional[Dict[str, List[str]]] = None
     ) -> None:        
         self.client_id=client_id
         self.client_secret=client_secret
         self.tenant_id=tenant_id
         self.sharepoint_site_name=sharepoint_site_name
         self.sharepoint_folder_path=sharepoint_drives_names
-        self.file_extractor=file_extractor
         self._sharepoint_folder_ids = {}
+        self.sharepoint_metadata_policy = sharepoint_metadata_policy
 
     @classmethod
     def class_name(cls) -> str:
@@ -315,15 +312,19 @@ class SharePointReader:
         response_json = response.json()
         parent_reference = response_json.get("parentReference")
 
+        expected_keys = [s.replace(' ', '_x0020_') for s in self.sharepoint_metadata_policy['fields']]
+
+        fields = {key.replace('_x0020_', ' '): value for key, value in response_json.get("fields").items() if (key in expected_keys) == self.sharepoint_metadata_policy['include']}
+
         metadata =  {
-            "file_id": response_json.get("id"),
-            "file_name": response_json.get("name"),
+            "file_id": id,
+            "file_name": item.get("name"),
             "url": response_json.get("webUrl"),
             "parent_id": parent_reference.get("id"),
-            "eTag": response_json.get("eTag"),
-            "lastModifiedDateTime": response_json.get("lastModifiedDateTime"),
-            "fields": response_json.get("fields")
+            "eTag": response_json.get("eTag")[1:-1],
+            "lastModifiedDateTime": datetime.strptime(response_json.get("lastModifiedDateTime"), '%Y-%m-%dT%H:%M:%SZ').strftime('%Y%m%d'),
         }
+        metadata.update(fields)
         
         medatada_path = change_file_extension(file_path, '.metadata')
         
@@ -350,7 +351,7 @@ class SharePointReader:
         sharepoint_site_name: str,
         sharepoint_drive_name: str,
         sharepoint_folder_path: Optional[str],
-        deph: int,
+        depth: int,
         download_dir: Optional[str] = None,
     ) -> Dict[str, str]:
         """
@@ -368,7 +369,7 @@ class SharePointReader:
 
         """
         
-        logger.info(f"Downloading files from '{sharepoint_folder_path}' to {download_dir}")
+        logger.info(f"Downloading files from {sharepoint_drive_name}/{sharepoint_folder_path} to {download_dir}")
         
         if not self._authorization_headers:
             self._get_access_token()
@@ -390,7 +391,7 @@ class SharePointReader:
         folder_info_endpoint = self._get_folder_info_endpoint(sharepoint_drive_name, sharepoint_folder_id)
                 
         return self._download_files_and_extract_metadata_from_endpoint(
-            sharepoint_drive_name, folder_info_endpoint, download_dir, deph
+            sharepoint_drive_name, folder_info_endpoint, download_dir, depth
         )
 
     def download_file_by_id(

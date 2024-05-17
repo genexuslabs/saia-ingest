@@ -28,6 +28,7 @@ from llama_hub.github_repo import GithubClient, GithubRepositoryReader
 
 from saia_ingest.config import DefaultVectorStore
 
+from typing import List, Dict
 import logging
 import shutil
 
@@ -587,6 +588,55 @@ def ingest_gdrive(
     finally:
         return ret
 
+def reprocess_failed_files_sahrepoint(
+        saia_profile:str,
+        download_directory:str,
+        reprocess_valid_status_list: List,
+        max_parallel_executions: int,
+        ragApi: RagApi,
+        loader: SharePointReader
+    ) -> List:
+    logging.getLogger().info(f"Checking for files to sync with {saia_profile} profile.")
+    docs_to_reprocess = search_failed_files(download_directory, reprocess_valid_status_list)
+    
+    if len(docs_to_reprocess) > 0:
+        logging.getLogger().info(f"Deleting files with status: {reprocess_valid_status_list}.")
+        with concurrent.futures.ThreadPoolExecutor(max_workers=max_parallel_executions) as executor:
+            futures = [executor.submit(ragApi.delete_profile_document, saia_profile, d['id']) for d in docs_to_reprocess]
+        concurrent.futures.wait(futures)
+
+        logging.getLogger().info(f"Downloading files from sharepoint.")
+        
+        with concurrent.futures.ThreadPoolExecutor(max_workers=max_parallel_executions) as executor:
+            futures = [executor.submit(loader.download_file_by_id, d['name'], find_value_by_key(d['metadata'], 'file_id'), os.path.dirname(d['file_path'][0:(len('.saia.metadata'))*-1])) for d in docs_to_reprocess]
+        concurrent.futures.wait(futures)
+            
+        return [d['file_path'][0:(len('.saia.metadata'))*-1] for d in docs_to_reprocess]
+
+def download_all_files_sharepoint(
+        sharepoint_drives_names: Dict,
+        download_directory: str,
+        sharepoint_site_name:str,
+        depth: int,
+        loader: SharePointReader
+    ) -> List:
+    
+    if not sharepoint_drives_names:
+        logging.getLogger().error(f"No drive selected.")
+    files = {}
+    for drive in sharepoint_drives_names:
+        drive_download_path = os.path.join(download_directory, drive)
+        drive_files = loader.download_files_from_folder(
+            sharepoint_site_name=sharepoint_site_name,
+            sharepoint_drive_name=drive,
+            sharepoint_folder_path=sharepoint_drives_names[drive],
+            depth=depth,
+            download_dir = drive_download_path
+        )
+        files.update(drive_files)
+    
+    return files.keys()
+
 def ingest_sharepoint(
         configuration: str,
         start_time: datetime,
@@ -600,8 +650,9 @@ def ingest_sharepoint(
         tenant_id= sharepoint_level.get('tenant_id', None) 
         sharepoint_site_name= sharepoint_level.get('sharepoint_site_name', None) 
         sharepoint_drives_names = sharepoint_level.get('sharepoint_drives_names', None) 
+        sharepoint_metadata_policy = sharepoint_level.get('metadata_policy', None) 
         download_dir = sharepoint_level.get('download_dir', None) 
-        deph= sharepoint_level.get('deph', 0)
+        depth= sharepoint_level.get('depth', 0)
         reprocess_failed_files = sharepoint_level.get('reprocess_failed_files', False)
         reprocess_valid_status_list = sharepoint_level.get('reprocess_valid_status_list', [])
     
@@ -610,7 +661,7 @@ def ingest_sharepoint(
         saia_base_url = saia_level.get('base_url', None)
         saia_api_token = saia_level.get('api_token', None)
         saia_profile = saia_level.get('profile', None)
-        max_parallel_executions = saia_level.get('max_parallel_executions', 5)
+        max_parallel_executions = saia_level.get('max_parallel_executions', 1)
         upload_operation_log = saia_level.get('upload_operation_log', False)
         
         ragApi = RagApi(saia_base_url,saia_api_token, saia_profile)
@@ -621,50 +672,26 @@ def ingest_sharepoint(
             client_secret=client_secret,
             tenant_id=tenant_id,
             sharepoint_site_name = sharepoint_site_name,
-            sharepoint_drives_names = sharepoint_drives_names
+            sharepoint_drives_names = sharepoint_drives_names,
+            sharepoint_metadata_policy = sharepoint_metadata_policy
         )
         
         download_directory = download_dir if download_dir else tempfile.TemporaryDirectory().name        
     
         if saia_base_url is not None:
             # Use Saia API to ingest
-            files_to_upload = []
-            if reprocess_failed_files:
-                logging.getLogger().info(f"Checking for files to sync with {saia_profile} profile.")
-                docs_to_reprocess = search_failed_files(download_directory, reprocess_valid_status_list)
-                
-                if len(docs_to_reprocess) > 0:
-                    logging.getLogger().info(f"Deleting files with status: {reprocess_valid_status_list}.")
-                    with concurrent.futures.ThreadPoolExecutor(max_workers=max_parallel_executions) as executor:
-                        futures = [executor.submit(ragApi.delete_profile_document, saia_profile, d['id']) for d in docs_to_reprocess]
-                    concurrent.futures.wait(futures)
-
-                    logging.getLogger().info(f"Downloading files from sharepoint.")
-                    
-                    with concurrent.futures.ThreadPoolExecutor(max_workers=max_parallel_executions) as executor:
-                        futures = [executor.submit(loader.download_file_by_id, d['name'], find_value_by_key(d['metadata'], 'file_id'), os.path.dirname(d['file_path'][0:(len('.saia.metadata'))*-1])) for d in docs_to_reprocess]
-                    concurrent.futures.wait(futures)
-                        
-                    files_to_upload = [d['file_path'][0:(len('.saia.metadata'))*-1] for d in docs_to_reprocess]
-
-            else:
-                
-                if not sharepoint_drives_names:
-                    logging.getLogger().error(f"No drive selected.")
-                files = {}
-                for drive in sharepoint_drives_names:
-                    drive_download_path = os.path.join(download_directory, drive)
-                    drive_files = loader.download_files_from_folder(
-                        sharepoint_site_name=sharepoint_site_name,
-                        sharepoint_drive_name=drive,
-                        sharepoint_folder_path=sharepoint_drives_names[drive],
-                        deph=deph,
-                        download_dir = drive_download_path
-                    )
-                    files.update(drive_files)
-                
-                files_to_upload = files.keys()
-            
+            files_to_upload = reprocess_failed_files_sahrepoint(
+                                    saia_profile,
+                                    download_directory,
+                                    reprocess_valid_status_list,
+                                    max_parallel_executions,
+                                    ragApi,
+                                    loader) if reprocess_failed_files else download_all_files_sharepoint(
+                                                                                sharepoint_drives_names,
+                                                                                download_directory,
+                                                                                sharepoint_site_name,
+                                                                                depth,
+                                                                                loader)            
             if len(files_to_upload) > 0:
                 logging.getLogger().info(f"Uploading files to {saia_profile}")
                 
@@ -692,5 +719,3 @@ def ingest_sharepoint(
         logging.getLogger().info(f"time: {end_time - start_time:.2f}s")
         return ret
 
-if __name__ == '__main__':
-    ingest_sharepoint('C:\\Users\\ABS 247\\Documents\\Develop\\saia-ingest\\config.yaml', time.time())
