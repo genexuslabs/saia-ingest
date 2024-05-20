@@ -700,6 +700,8 @@ def ingest_sharepoint(
                 concurrent.futures.wait(futures)
                 
                 logging.getLogger().info("Upload finished.")
+            else:
+                logging.getLogger().info("No files to upload")
             
             if upload_operation_log:
                 end_time = time.time()

@@ -49,7 +49,8 @@ class SharePointReader:
         tenant_id: str,
         sharepoint_site_name: Optional[str] = None,
         sharepoint_drives_names: Optional[str] = None,
-        sharepoint_metadata_policy: Optional[Dict[str, List[str]]] = None
+        sharepoint_metadata_policy: Optional[Dict[str, List[str]]] = None,
+        sharepoint_metadata_extension:Optional[str] = '.metadata'
     ) -> None:        
         self.client_id=client_id
         self.client_secret=client_secret
@@ -58,6 +59,7 @@ class SharePointReader:
         self.sharepoint_folder_path=sharepoint_drives_names
         self._sharepoint_folder_ids = {}
         self.sharepoint_metadata_policy = sharepoint_metadata_policy
+        self.sharepoint_metadata_extension = sharepoint_metadata_extension
 
     @classmethod
     def class_name(cls) -> str:
@@ -266,33 +268,28 @@ class SharePointReader:
             logger.error(response.json()["error"])
             raise ValueError(response.json()["error"])
 
-    def _download_file_by_url(self, item: Dict[str, Any], download_dir: str) -> str:
+    def _download_file_by_url(self, item: Dict[str, Any], download_path: str) -> str:
         """
         Downloads the file from the provided URL.
 
         Args:
             item (Dict[str, Any]): Dictionary containing file metadata.
-            download_dir (str): The directory where the files should be downloaded.
+            download_path (str): The path where the files should be downloaded.
 
         Returns:
             str: The path of the downloaded file in the temporary directory.
         """
         # Get the download URL for the file.
         file_download_url = item["@microsoft.graph.downloadUrl"]
-        file_name = item["name"]
 
         response = requests.get(file_download_url)
 
-        # Create the directory if it does not exist and save the file.
-        if not os.path.exists(download_dir):
-            os.makedirs(download_dir)
-        file_path = os.path.join(download_dir, file_name)
-        with open(file_path, "wb") as f:
+        with open(download_path, "wb") as f:
             f.write(response.content)
 
-        return file_path
+        return download_path
 
-    def _extract_metadata_for_file(self, sharepoint_drive_name, item: Dict[str, Any], file_path: str) -> Dict[str, str]:
+    def _extract_metadata_for_file(self, sharepoint_drive_name, item: Dict[str, Any], metadata_path: str) -> Dict[str, str]:
         """
         Extracts metadata related to the file.
 
@@ -318,17 +315,17 @@ class SharePointReader:
 
         metadata =  {
             "file_id": id,
-            "file_name": item.get("name"),
+            "Nombre": item.get("name"),
             "url": response_json.get("webUrl"),
             "parent_id": parent_reference.get("id"),
-            "eTag": response_json.get("eTag")[1:-1],
+            "eTag": item.get("eTag")[1:-1],
             "lastModifiedDateTime": datetime.strptime(response_json.get("lastModifiedDateTime"), '%Y-%m-%dT%H:%M:%SZ').strftime('%Y%m%d'),
         }
         metadata.update(fields)
         
-        medatada_path = change_file_extension(file_path, '.metadata')
+        metadata_path
         
-        with open(medatada_path , "w") as f:
+        with open(metadata_path , "w") as f:
             f.write(json.dumps(metadata, indent=2))
             
         return metadata
@@ -340,10 +337,27 @@ class SharePointReader:
         download_dir: str,
     ):
         metadata = {}
-
-        file_path = self._download_file_by_url(item, download_dir)
-
-        metadata[file_path] = self._extract_metadata_for_file(sharepoint_drive_name, item, file_path)
+        
+        file_path = os.path.join(download_dir, item['name'])
+        metadata_path = change_file_extension(file_path, self.sharepoint_metadata_extension)
+        download_required = False
+        # Create the directory if it does not exist and save the file.
+        if not os.path.exists(download_dir):
+            os.makedirs(download_dir)
+        else:
+            if os.path.exists(metadata_path):
+                with open(metadata_path, 'r') as f:
+                    try:
+                        data = json.load(f)
+                        download_required = data['eTag'] != item['eTag'][1:-1]
+                        
+                    except json.JSONDecodeError:
+                        print(f"Error decoding JSON in file: {file_path}")
+        if download_required:
+            self._download_file_by_url(item, file_path)
+            metadata[file_path] = self._extract_metadata_for_file(sharepoint_drive_name, item, metadata_path)
+        else:
+            logger.info(f"{item['name']} already exist in its last version.")
         return metadata
 
     def download_files_from_folder(
