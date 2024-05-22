@@ -344,16 +344,14 @@ class SharePointReader:
         # Create the directory if it does not exist and save the file.
         if not os.path.exists(download_dir):
             os.makedirs(download_dir)
-        else:
-            if os.path.exists(metadata_path):
-                with open(metadata_path, 'r') as f:
-                    try:
-                        data = json.load(f)
-                        download_required = data['eTag'] != item['eTag'][1:-1]
-                        
-                    except json.JSONDecodeError:
-                        print(f"Error decoding JSON in file: {file_path}")
-        if download_required:
+        if os.path.exists(metadata_path):
+            with open(metadata_path, 'r') as f:
+                try:
+                    data = json.load(f)
+                    download_required = data['eTag'] != item['eTag'][1:-1]
+                except json.JSONDecodeError:
+                    print(f"Error decoding JSON in file: {file_path}")
+        if (not os.path.exists(metadata_path)) or download_required:
             self._download_file_by_url(item, file_path)
             metadata[file_path] = self._extract_metadata_for_file(sharepoint_drive_name, item, metadata_path)
         else:
