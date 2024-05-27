@@ -1,6 +1,6 @@
 
 """SharePoint files reader."""
-
+import re
 import logging
 import os
 import json
@@ -11,6 +11,16 @@ from saia_ingest.utils import change_file_extension
 
 logger = logging.getLogger(__name__)
 
+CODE_TO_CHAR = {
+    '_x007e_': '~', '_x0021_': '!', '_x0040_': '@', '_x0023_': '#',
+    '_x0024_': '$', '_x0025_': '%', '_x005E_': '^', '_x0026_': '&',
+    '_x002a_': '*', '_x0028_': '(', '_x0029_': ')', '_x002B_': '+',
+    '_x002D_': '–', '_x003D_': '=', '_x007B_': '{', '_x007D_': '}',
+    '_x003A_': ':', '_x0022_': '"', '_x007C_': '|', '_x003B_': ';',
+    '_x0027_': '\'', '_x005C_': '\\', '_x003C_': '<', '_x003E_': '>',
+    '_x003F_': '?', '_x002C_': ',', '_x002E_': '.', '_x002F_': '/',
+    '_x0060_': '`', '_x0020_': ' '
+}
 
 class SharePointReader:
     """SharePoint reader.
@@ -288,6 +298,16 @@ class SharePointReader:
             f.write(response.content)
 
         return download_path
+    
+    def decode_unicode(self, data):
+        if isinstance(data, dict):
+            return {key: self.decode_unicode(value) for key, value in data.items()}
+        elif isinstance(data, list):
+            return [self.decode_unicode(item) for item in data]
+        elif isinstance(data, str):
+            return data.encode().decode('unicode_escape')
+        else:
+            return data
 
     def _extract_metadata_for_file(self, sharepoint_drive_name, item: Dict[str, Any], metadata_path: str) -> Dict[str, str]:
         """
@@ -306,12 +326,20 @@ class SharePointReader:
             url=f"https://graph.microsoft.com/v1.0/drives/{self._drives_ids[sharepoint_drive_name]}/items/{id}/listItem?expand=fields",
             headers=self._authorization_headers,
         )
-        response_json = response.json()
+        response_text = response.text
+        for code, char in CODE_TO_CHAR.items():
+            response_text = response_text.replace(code, char)
+
+        response_json = json.loads(response_text)
         parent_reference = response_json.get("parentReference")
 
-        expected_keys = [s.replace(' ', '_x0020_') for s in self.sharepoint_metadata_policy['fields']]
+        # Define the regex pattern to match '&(amp;)+'
+        pattern = r'&(amp;)+'
 
-        fields = {key.replace('_x0020_', ' '): value for key, value in response_json.get("fields").items() if (key in expected_keys) == self.sharepoint_metadata_policy['include']}
+        fields = {key: re.sub(pattern, '&', value) for key, value in response_json.get("fields").items() if (key in self.sharepoint_metadata_policy['fields']) == self.sharepoint_metadata_policy['include']}
+        
+        if fields['Descripcion']:
+            fields['description'] = fields['Descripcion']
 
         metadata =  {
             "file_id": id,
@@ -327,7 +355,8 @@ class SharePointReader:
         
         with open(metadata_path , "w") as f:
             f.write(json.dumps(metadata, indent=2))
-            
+        with open(metadata_path+'.raw' , "w") as f:
+            f.write(json.dumps(response.json(), indent=2))
         return metadata
 
     def _download_file(
