@@ -7,7 +7,7 @@ import json
 from typing import Any, Dict, List, Optional
 from datetime import datetime
 import requests
-from saia_ingest.utils import change_file_extension
+from saia_ingest.utils import change_file_extension, get_yaml_config
 
 logger = logging.getLogger(__name__)
 
@@ -336,10 +336,18 @@ class SharePointReader:
         # Define the regex pattern to match '&(amp;)+'
         pattern = r'&(amp;)+'
 
-        fields = {key: re.sub(pattern, '&', value) for key, value in response_json.get("fields").items() if (key in self.sharepoint_metadata_policy['fields']) == self.sharepoint_metadata_policy['include']}
+        fields = {key: re.sub(pattern, '&', str(value)) for key, value in response_json.get("fields").items() if (key in self.sharepoint_metadata_policy['fields']) == self.sharepoint_metadata_policy['include']}
         
         if fields['Descripcion']:
             fields['description'] = fields['Descripcion']
+
+        if 'SubTipoDocId' in fields:
+            codes = get_yaml_config('C:\\Users\\ABS 247\\Documents\\Develop\\saia-ingest\\sharepoint\\subTipoDoc.yaml')
+            fields['Subtipo de Documento'] = codes.get(int(float(fields['SubTipoDocId'])), '')
+
+        for date in ['Fecha creacion', 'Fecha modificacion', 'GyRFchSentencia']:
+            if date in fields:
+                fields[date] = datetime.strptime(response_json.get(date), '%Y-%m-%dT%H:%M:%SZ').strftime('%Y%m%d')
 
         metadata =  {
             "file_id": id,

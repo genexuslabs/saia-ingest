@@ -76,3 +76,25 @@ def find_value_by_key(metadata_list, key):
         if key == item.get('key'):
             return item.get('value')
     return None
+
+def search_fields_values(directory):
+    dict_of_sets = {}
+    count = 0
+    for root, _, files in os.walk(directory):
+        for file in files:
+            if file.endswith('.metadata.raw'):
+                count += 1
+                file_path = os.path.join(root, file)
+                with open(file_path, 'r') as f:
+                    try:
+                        data = json.load(f)
+                        if 'fields' in data.keys():
+                            for key in [key for key in data['fields'].keys() if not key in ['Fecha_x0020_modificacion','Fecha_x0020_creacion','GyRFchSentencia']]:
+                                if not key in dict_of_sets.keys():
+                                    dict_of_sets[key] = []
+                                if not isinstance(data['fields'][key], list):
+                                    dict_of_sets[key].append(data['fields'][key])
+                    except json.JSONDecodeError:
+                        print(f"Error decoding JSON in file: {file_path}")
+    return dict_of_sets
+

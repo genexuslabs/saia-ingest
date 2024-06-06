@@ -662,7 +662,7 @@ def ingest_sharepoint(
         saia_api_token = saia_level.get('api_token', None)
         saia_profile = saia_level.get('profile', None)
         max_parallel_executions = saia_level.get('max_parallel_executions', 1)
-        upload_operation_log = saia_level.get('upload_operation_log', False)
+        upload_operation_log = saia_level.get('upload_operation_log', True)
         
         ragApi = RagApi(saia_base_url,saia_api_token, saia_profile)
 
