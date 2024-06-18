@@ -96,5 +96,6 @@ def search_fields_values(directory):
                                     dict_of_sets[key].append(data['fields'][key])
                     except json.JSONDecodeError:
                         print(f"Error decoding JSON in file: {file_path}")
+    for key  in dict_of_sets:
+        dict_of_sets[key] = list(set(dict_of_sets[key]))
     return dict_of_sets
-

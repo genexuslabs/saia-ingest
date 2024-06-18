@@ -112,7 +112,7 @@ def operation_log_upload(
                 accumulating_handler = handler
                 break
         if not accumulating_handler:
-            logging.getLogger().Warning("AccumulatingLogHandler not found in the root logger's handlers.")
+            logging.getLogger().warning("AccumulatingLogHandler not found in the root logger's handlers.")
             return
 
         data = {

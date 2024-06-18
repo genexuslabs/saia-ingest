@@ -8,6 +8,7 @@ from typing import Any, Dict, List, Optional
 from datetime import datetime
 import requests
 from saia_ingest.utils import change_file_extension, get_yaml_config
+from urllib.parse import quote
 
 logger = logging.getLogger(__name__)
 
@@ -230,6 +231,7 @@ class SharePointReader:
     def _download_files_and_extract_metadata_from_endpoint(
         self,
         sharepoint_drive_name: str,
+        sharepoint_translation_needed:str,
         folder_info_endpoint: str,
         download_dir: str,
         deph: int = 0,
@@ -270,7 +272,7 @@ class SharePointReader:
                     metadata.update(subfolder_metadata)
 
                 elif "file" in item:
-                    file_metadata = self._download_file(item, sharepoint_drive_name, download_dir)
+                    file_metadata = self._download_file(item, sharepoint_drive_name,sharepoint_translation_needed, download_dir)
                     metadata.update(file_metadata)
             logger.info(f"Download finished.")
             return metadata
@@ -309,12 +311,13 @@ class SharePointReader:
         else:
             return data
 
-    def _extract_metadata_for_file(self, sharepoint_drive_name, item: Dict[str, Any], metadata_path: str) -> Dict[str, str]:
+    def _extract_metadata_for_file(self, sharepoint_drive_name, sharepoint_translation_needed, item: Dict[str, Any], metadata_path: str) -> Dict[str, str]:
         """
         Extracts metadata related to the file.
 
         Parameters:
         sharepoint_drive_name: (str): The name of the SharePoint drive inside the site.
+        sharepoint_translation_needed (str): List of files that needs to be mapped to other values.
         - item (Dict[str, str]): Dictionary containing file metadata.
 
         Returns:
@@ -338,21 +341,23 @@ class SharePointReader:
 
         fields = {key: re.sub(pattern, '&', str(value)) for key, value in response_json.get("fields").items() if (key in self.sharepoint_metadata_policy['fields']) == self.sharepoint_metadata_policy['include']}
         
-        if fields['Descripcion']:
+        if 'Descripcion' in fields:
             fields['description'] = fields['Descripcion']
 
-        if 'SubTipoDocId' in fields:
-            codes = get_yaml_config('C:\\Users\\ABS 247\\Documents\\Develop\\saia-ingest\\sharepoint\\subTipoDoc.yaml')
-            fields['Subtipo de Documento'] = codes.get(int(float(fields['SubTipoDocId'])), '')
+        translation_fields = [value for value in sharepoint_translation_needed if value in fields]
+        
+        for field in translation_fields:
+            codes = get_yaml_config(f"C:\\Users\\ABS 247\\Documents\\Develop\\saia-ingest\\sharepoint\\{field}.yaml")
+            fields[field] = codes.get(int(float(fields[field])), '')
 
         for date in ['Fecha creacion', 'Fecha modificacion', 'GyRFchSentencia']:
             if date in fields:
-                fields[date] = datetime.strptime(response_json.get(date), '%Y-%m-%dT%H:%M:%SZ').strftime('%Y%m%d')
-
+                fields[date] = datetime.strptime(fields[date], '%Y-%m-%dT%H:%M:%SZ').strftime('%Y%m%d')
+                
         metadata =  {
             "file_id": id,
             "Nombre": item.get("name"),
-            "url": response_json.get("webUrl"),
+            "url": quote(response_json.get("webUrl"), safe=':/'),
             "parent_id": parent_reference.get("id"),
             "eTag": item.get("eTag")[1:-1],
             "lastModifiedDateTime": datetime.strptime(response_json.get("lastModifiedDateTime"), '%Y-%m-%dT%H:%M:%SZ').strftime('%Y%m%d'),
@@ -371,6 +376,7 @@ class SharePointReader:
         self,
         item: Dict[str, Any],
         sharepoint_drive_name: str,
+        sharepoint_translation_needed: str,
         download_dir: str,
     ):
         metadata = {}
@@ -390,7 +396,7 @@ class SharePointReader:
                     print(f"Error decoding JSON in file: {file_path}")
         if (not os.path.exists(metadata_path)) or download_required:
             self._download_file_by_url(item, file_path)
-            metadata[file_path] = self._extract_metadata_for_file(sharepoint_drive_name, item, metadata_path)
+            metadata[file_path] = self._extract_metadata_for_file(sharepoint_drive_name, sharepoint_translation_needed, item, metadata_path)
         else:
             logger.info(f"{item['name']} already exist in its last version.")
         return metadata
@@ -399,6 +405,7 @@ class SharePointReader:
         self,
         sharepoint_site_name: str,
         sharepoint_drive_name: str,
+        sharepoint_translation_needed:str,
         sharepoint_folder_path: Optional[str],
         depth: int,
         download_dir: Optional[str] = None,
@@ -440,12 +447,13 @@ class SharePointReader:
         folder_info_endpoint = self._get_folder_info_endpoint(sharepoint_drive_name, sharepoint_folder_id)
                 
         return self._download_files_and_extract_metadata_from_endpoint(
-            sharepoint_drive_name, folder_info_endpoint, download_dir, depth
+            sharepoint_drive_name, sharepoint_translation_needed, folder_info_endpoint, download_dir, depth
         )
 
     def download_file_by_id(
         self,
         sharepoint_drive_name: str,
+        sharepoint_translation_needed:str,
         sharepoint_file_id: str,
         download_dir: str = None,
     ) -> Dict[str, str]:
@@ -456,6 +464,7 @@ class SharePointReader:
             download_dir (str): The directory where the files should be downloaded.
             sharepoint_file_id (str): The id of the file to be downloaded.
             sharepoint_file_name (str): The name of the file to be downloaded.
+            sharepoint_translation_needed (str): List of files that needs to be mapped to other values.
 
         Returns:
             Dict[str, str]: A dictionary containing the metadata of the downloaded file.
@@ -478,7 +487,7 @@ class SharePointReader:
 
         if response.status_code == 200:
             data = response.json()
-            metadata = self._download_file(data, sharepoint_drive_name, download_dir)
+            metadata = self._download_file(data, sharepoint_drive_name,sharepoint_translation_needed, download_dir)
             
             logger.info(f"Download finished.")
             return metadata
