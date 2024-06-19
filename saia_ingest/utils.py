@@ -77,7 +77,7 @@ def find_value_by_key(metadata_list, key):
             return item.get('value')
     return None
 
-def search_fields_values(directory):
+def search_fields_values(directory, fields_to_exclude = []):
     dict_of_sets = {}
     count = 0
     for root, _, files in os.walk(directory):
@@ -89,7 +89,7 @@ def search_fields_values(directory):
                     try:
                         data = json.load(f)
                         if 'fields' in data.keys():
-                            for key in [key for key in data['fields'].keys() if not key in ['Fecha_x0020_modificacion','Fecha_x0020_creacion','GyRFchSentencia']]:
+                            for key in [key for key in data['fields'].keys() if not key in fields_to_exclude]:
                                 if not key in dict_of_sets.keys():
                                     dict_of_sets[key] = []
                                 if not isinstance(data['fields'][key], list):

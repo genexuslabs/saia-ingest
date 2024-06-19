@@ -591,7 +591,6 @@ def ingest_gdrive(
 def reprocess_failed_files_sahrepoint(
         saia_profile:str,
         download_directory:str,
-        sharepoint_translation_needed:List,
         reprocess_valid_status_list: List,
         max_parallel_executions: int,
         ragApi: RagApi,
@@ -609,14 +608,13 @@ def reprocess_failed_files_sahrepoint(
         logging.getLogger().info(f"Downloading files from sharepoint.")
         
         with concurrent.futures.ThreadPoolExecutor(max_workers=max_parallel_executions) as executor:
-            futures = [executor.submit(loader.download_file_by_id, d['name'], sharepoint_translation_needed, find_value_by_key(d['metadata'], 'file_id'), os.path.dirname(d['file_path'][0:(len('.saia.metadata'))*-1])) for d in docs_to_reprocess]
+            futures = [executor.submit(loader.download_file_by_id, d['name'], find_value_by_key(d['metadata'], 'file_id'), os.path.dirname(d['file_path'][0:(len('.saia.metadata'))*-1])) for d in docs_to_reprocess]
         concurrent.futures.wait(futures)
             
         return [d['file_path'][0:(len('.saia.metadata'))*-1] for d in docs_to_reprocess]
 
 def download_all_files_sharepoint(
         sharepoint_drives_names: Dict,
-        sharepoint_translation_needed:str,
         download_directory: str,
         sharepoint_site_name:str,
         depth: int,
@@ -631,7 +629,6 @@ def download_all_files_sharepoint(
         drive_files = loader.download_files_from_folder(
             sharepoint_site_name=sharepoint_site_name,
             sharepoint_drive_name=drive,
-            sharepoint_translation_needed = sharepoint_translation_needed,
             sharepoint_folder_path=sharepoint_drives_names[drive],
             depth=depth,
             download_dir = drive_download_path
@@ -654,11 +651,12 @@ def ingest_sharepoint(
         sharepoint_site_name= sharepoint_level.get('sharepoint_site_name', None) 
         sharepoint_drives_names = sharepoint_level.get('sharepoint_drives_names', None) 
         sharepoint_metadata_policy = sharepoint_level.get('metadata_policy', None) 
-        download_dir = sharepoint_level.get('download_dir', None) 
+        download_dir = sharepoint_level.get('download_dir', None)
+        download_dir = download_dir + f"\\{sharepoint_site_name}"
         depth= sharepoint_level.get('depth', 0)
         reprocess_failed_files = sharepoint_level.get('reprocess_failed_files', False)
         reprocess_valid_status_list = sharepoint_level.get('reprocess_valid_status_list', [])
-        sharepoint_translation_needed = sharepoint_level.get('translation_needed', [])
+        
         # Saia
         saia_level = config.get('saia', {})
         saia_base_url = saia_level.get('base_url', None)
@@ -686,13 +684,11 @@ def ingest_sharepoint(
             files_to_upload = reprocess_failed_files_sahrepoint(
                                     saia_profile,
                                     download_directory,
-                                    sharepoint_translation_needed,
                                     reprocess_valid_status_list,
                                     max_parallel_executions,
                                     ragApi,
                                     loader) if reprocess_failed_files else download_all_files_sharepoint(
                                                                                 sharepoint_drives_names,
-                                                                                sharepoint_translation_needed,
                                                                                 download_directory,
                                                                                 sharepoint_site_name,
                                                                                 depth,
@@ -726,3 +722,19 @@ def ingest_sharepoint(
         logging.getLogger().info(f"time: {end_time - start_time:.2f}s")
         return ret
 
+
+if __name__ == '__main__':
+    
+    # Configure the logging system
+    logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+
+    # Define the FileHandler with the log file path
+    file_handler = logging.FileHandler('logfile.log')
+
+    # Set the log file format
+    file_handler.setFormatter(logging.Formatter('%(message)s'))
+
+    # Add the FileHandler to the root logger
+    logging.getLogger().addHandler(file_handler)
+    
+    ingest_sharepoint('C:\\Users\\ABS 247\\Documents\\Develop\\saia-ingest\\config\\config.yaml', time.time())
