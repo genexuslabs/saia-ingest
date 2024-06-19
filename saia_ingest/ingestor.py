@@ -721,20 +721,3 @@ def ingest_sharepoint(
         end_time = time.time()
         logging.getLogger().info(f"time: {end_time - start_time:.2f}s")
         return ret
-
-
-if __name__ == '__main__':
-    
-    # Configure the logging system
-    logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
-
-    # Define the FileHandler with the log file path
-    file_handler = logging.FileHandler('logfile.log')
-
-    # Set the log file format
-    file_handler.setFormatter(logging.Formatter('%(message)s'))
-
-    # Add the FileHandler to the root logger
-    logging.getLogger().addHandler(file_handler)
-    
-    ingest_sharepoint('C:\\Users\\ABS 247\\Documents\\Develop\\saia-ingest\\config\\config.yaml', time.time())
