@@ -614,27 +614,25 @@ def reprocess_failed_files_sahrepoint(
         return [d['file_path'][0:(len('.saia.metadata'))*-1] for d in docs_to_reprocess]
 
 def download_all_files_sharepoint(
-        sharepoint_drives_names: Dict,
         download_directory: str,
-        sharepoint_site_name:str,
+        sharepoint_sites_names:str,
         depth: int,
         loader: SharePointReader
     ) -> List:
     
-    if not sharepoint_drives_names:
-        logging.getLogger().error(f"No drive selected.")
     files = {}
-    for drive in sharepoint_drives_names:
-        drive_download_path = os.path.join(download_directory, drive)
-        drive_files = loader.download_files_from_folder(
-            sharepoint_site_name=sharepoint_site_name,
-            sharepoint_drive_name=drive,
-            sharepoint_folder_path=sharepoint_drives_names[drive],
-            depth=depth,
-            download_dir = drive_download_path
-        )
-        files.update(drive_files)
     
+    for site in sharepoint_sites_names:
+        for drive in sharepoint_sites_names[site]:
+            drive_download_path = os.path.join(download_directory, site, drive)
+            drive_files = loader.download_files_from_folder(
+                sharepoint_site_name=site,
+                sharepoint_drive_name=drive,
+                depth=depth,
+                download_dir = drive_download_path
+            )
+            files.update(drive_files)
+        
     return files.keys()
 
 def ingest_sharepoint(
@@ -648,11 +646,9 @@ def ingest_sharepoint(
         client_id= sharepoint_level.get('client_id', None) 
         client_secret= sharepoint_level.get('client_secret', None) 
         tenant_id= sharepoint_level.get('tenant_id', None) 
-        sharepoint_site_name= sharepoint_level.get('sharepoint_site_name', None) 
-        sharepoint_drives_names = sharepoint_level.get('sharepoint_drives_names', None) 
+        sharepoint_sites_names= sharepoint_level.get('sharepoint_sites_names', None) 
         sharepoint_metadata_policy = sharepoint_level.get('metadata_policy', None) 
         download_dir = sharepoint_level.get('download_dir', None)
-        download_dir = download_dir + f"\\{sharepoint_site_name}"
         depth= sharepoint_level.get('depth', 0)
         reprocess_failed_files = sharepoint_level.get('reprocess_failed_files', False)
         reprocess_valid_status_list = sharepoint_level.get('reprocess_valid_status_list', [])
@@ -672,8 +668,7 @@ def ingest_sharepoint(
             client_id=client_id,
             client_secret=client_secret,
             tenant_id=tenant_id,
-            sharepoint_site_name = sharepoint_site_name,
-            sharepoint_drives_names = sharepoint_drives_names,
+            sharepoint_sites_names = sharepoint_sites_names,
             sharepoint_metadata_policy = sharepoint_metadata_policy
         )
         
@@ -688,9 +683,8 @@ def ingest_sharepoint(
                                     max_parallel_executions,
                                     ragApi,
                                     loader) if reprocess_failed_files else download_all_files_sharepoint(
-                                                                                sharepoint_drives_names,
                                                                                 download_directory,
-                                                                                sharepoint_site_name,
+                                                                                sharepoint_sites_names,
                                                                                 depth,
                                                                                 loader)            
             if len(files_to_upload) > 0:

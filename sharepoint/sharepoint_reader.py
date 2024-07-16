@@ -34,8 +34,7 @@ class SharePointReader:
             The application must also be configured with MS Graph permissions "Files.ReadAll", "Sites.ReadAll" and BrowserSiteLists.Read.All.
         client_secret (str): The application secret for the app registered in Azure.
         tenant_id (str): Unique identifier of the Azure Active Directory Instance.
-        sharepoint_site_name (Optional[str]): The name of the SharePoint site to download from.
-        sharepoint_drives_names (Optional[Dict[str,str]]): A dictionary with drives names as keys and folder paths related to that drive as values.
+        sharepoint_sites_names (Optional[Dict[str,str]]): A dictionary with Sites names as keys and a list of drives where to search for documents.
         sharepoint_metadata_policy (Optional[Dict[str, List[str]]]): Indicates how to select the metadata to save. If include key has True value, the
                                                                     values in the fileds key are keys from the custom metadata to be included. If the
                                                                     include key is False, they are exluded.
@@ -44,7 +43,7 @@ class SharePointReader:
     client_id: str = None
     client_secret: str = None
     tenant_id: str = None
-    sharepoint_site_name: Optional[str] = None
+    sharepoint_sites_names: Optional[str] = None
     sharepoint_drives_names: Optional[str] = None
     _sharepoint_folder_ids: Optional[Dict] = None
 
@@ -58,7 +57,7 @@ class SharePointReader:
         client_id: str,
         client_secret: str,
         tenant_id: str,
-        sharepoint_site_name: Optional[str] = None,
+        sharepoint_sites_names: Optional[str] = None,
         sharepoint_drives_names: Optional[str] = None,
         sharepoint_metadata_policy: Optional[Dict[str, List[str]]] = None,
         sharepoint_metadata_extension:Optional[str] = '.metadata'
@@ -66,7 +65,7 @@ class SharePointReader:
         self.client_id=client_id
         self.client_secret=client_secret
         self.tenant_id=tenant_id
-        self.sharepoint_site_name=sharepoint_site_name
+        self.sharepoint_sites_names=sharepoint_sites_names
         self.sharepoint_folder_path=sharepoint_drives_names
         self._sharepoint_folder_ids = {}
         self.sharepoint_metadata_policy = sharepoint_metadata_policy
@@ -408,8 +407,8 @@ class SharePointReader:
         self,
         sharepoint_site_name: str,
         sharepoint_drive_name: str,
-        sharepoint_folder_path: Optional[str],
         depth: int,
+        sharepoint_folder_path: Optional[str] = '',
         download_dir: Optional[str] = None,
     ) -> Dict[str, str]:
         """
@@ -432,13 +431,11 @@ class SharePointReader:
         if not self._authorization_headers:
             self._get_access_token()
 
-        if not self._site_id_with_host_name:
-            self._get_site_id_with_host_name(
-                sharepoint_site_name
-            )
+        self._get_site_id_with_host_name(
+            sharepoint_site_name
+        )
 
-        if not self._drives_ids:
-            self._drives_ids = self._get_drives_id()
+        self._drives_ids = self._get_drives_id()
         
         sharepoint_folder_id = self._sharepoint_folder_ids[sharepoint_folder_path] if (
             sharepoint_folder_path in self._sharepoint_folder_ids.keys()) else self._get_sharepoint_folder_id(
