@@ -21,12 +21,30 @@ sharepoint: # contact the provider for the following information
   client_id: !!str 'string'
   client_secret: !!str 'string'
   tenant_id: !!str 'string'
-  sharepoint_site_name: !!str 'string'
-  sharepoint_folder_path: !!str 'string'
+  sharepoint_sites_names: # List of Site Names containing a list of subfolders
+   siteItemName1: ['Folder1', 'Folder2', ...]
+   siteItemName2: ['Folder1', 'Folder2', ...]
   download_dir: !!str 'string' # Download folder where the files are downloaded.
-  recursive: !!bool True|False (default) # Set if files from sub-folders are download.
+  depth: !!number # Depth to check when processing sub-folders.
   reprocess_failed_files: !!bool True|False (default) # Check if failed uploads needs to be reprocessed
   reprocess_valid_status_list: # List of Statuses to process, valid values Unknown, Starting, Failed, Pending, Success
+  metadata_policy: # Optional
+    include_fields: !!bool True|False (default) # Consider extra metadata fields?
+    fields: [
+      'MetadataName_1',
+      ...
+      'MetadataName_n'
+    ]
+    translation_needed: ['LookupIdItem_1', ..., 'LookupIdItem_n'] # Dictionary of items that needs to be mapped to other values
+    translation_folder: !!str # Fullpath to a configuration yaml file
+    field_rename: # Renaming of fields
+      MetadataFieldName_1: 
+        new_name: !!str NewMetadataFieldName_1
+        delete_old: !!bool True|False (default) # Remove original metadata element?
+    # Specific for Date Management
+    date_fields: ['DateMetadataItem_1', ... , 'DateMetadataItem_2']
+    date_input_format: !!str '%Y-%m-%dT%H:%M:%SZ' # Date Input format
+    date_output_format: !!str '%Y%m%d' # Date Output format
 saia:
   base_url: !!str 'string' # GeneXus Enterprise AI Base URL
   api_token: !!str 'string'

@@ -300,5 +300,19 @@ class RagApi:
         if self.profile:
             docs = self.get_profile_documents(self.profile)
             with concurrent.futures.ThreadPoolExecutor(max_workers=self.max_parallel_executions) as executor:
-                    futures = [executor.submit(self.delete_profile_document, self.profile, d['id']) for d in docs['documents']]
+                    futures = [executor.submit(self.delete_profile_document, d['id'], self.profile) for d in docs['documents']]
             concurrent.futures.wait(futures)
+        
+    
+    def ask_rag_agent(self, prompt, profile_name):
+        '''
+        Given a prompt, make a question to an agent.
+        
+        Args:
+            prompt    (str):               Promt to be provided to the agent.
+            profile_name (Optional[str]):  Name of the RAG assistant we want to update. Default self.profile
+        '''
+        url = f"{self.base_url}/v1/search/execute"
+        name = profile_name or self.profile
+        resp = self._do_request(POST_METHOD, url, headers=self.base_header, json={"profile": name, "question": prompt})
+        return resp.json()

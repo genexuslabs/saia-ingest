@@ -30,6 +30,7 @@ class S3Reader(BaseReader):
         prefix: Optional[str] = "",
         file_extractor: Optional[Dict[str, Union[str, BaseReader]]] = None,
         required_exts: Optional[List[str]] = None,
+        excluded_exts: Optional[List[str]] = None,
         filename_as_id: bool = False,
         num_files_limit: Optional[int] = None,
         file_metadata: Optional[Callable[[str], Dict]] = None,
@@ -62,6 +63,8 @@ class S3Reader(BaseReader):
             to text. See `SimpleDirectoryReader` for more details.
         required_exts (Optional[List[str]]): List of required extensions.
             Default is None.
+        excluded_exts (Optional[List[str]]): List of excluded extensions.
+            Default is None.
         num_files_limit (Optional[int]): Maximum number of files to read.
             Default is None.
         file_metadata (Optional[Callable[str, Dict]]): A function that takes
@@ -79,6 +82,7 @@ class S3Reader(BaseReader):
 
         self.file_extractor = file_extractor
         self.required_exts = required_exts
+        self.excluded_exts = excluded_exts
         self.filename_as_id = filename_as_id
         self.num_files_limit = num_files_limit
         self.file_metadata = file_metadata
@@ -160,10 +164,11 @@ class S3Reader(BaseReader):
         if self.use_local_folder:
 
             if self.process_files:
-                self.rename_files(self.local_folder, '.json', None, '.json', self.prefix + '/', 'fileextension')
+                self.rename_files(self.local_folder, self.excluded_exts, None, '.json', self.prefix + '/', 'fileextension')
 
             for f in os.listdir(self.local_folder):
-                if f.endswith('.json'):
+                f_extension = os.path.splitext(f)[1][1:]  # get extension without the leading dot
+                if self.excluded_exts is not None and f_extension in self.excluded_exts:
                     continue
                 if not os.path.isfile(os.path.join(self.local_folder, f)):
                     continue
@@ -251,7 +256,7 @@ class S3Reader(BaseReader):
         logging.getLogger().info(f"Skipped: {skip_count} Total: {count}")
 
         if self.process_files:
-            self.rename_files(temp_dir, '.json', None, '.json', self.prefix + '/', 'fileextension')
+            self.rename_files(temp_dir, self.excluded_exts, None, '.json', self.prefix + '/', 'fileextension')
 
         file_paths = [os.path.join(temp_dir, f) for f in os.listdir(temp_dir) if os.path.isfile(os.path.join(temp_dir, f)) and not f.endswith('.json')]
         return file_paths
@@ -289,7 +294,7 @@ class S3Reader(BaseReader):
     def rename_files(
             self,
             folder_path: str,
-            excluded_extension: str,
+            excluded_exts: str,
             main_extension: str,
             metadata_extension: str,
             key_prefix: str,
@@ -306,14 +311,14 @@ class S3Reader(BaseReader):
         timestamp_tag = 'publishdate'
         # Process each file
         with concurrent.futures.ThreadPoolExecutor(max_workers=self.max_parallel_executions) as executor:
-            futures = [executor.submit(self.rename_file, folder_path, excluded_extension, main_extension, metadata_extension, key_prefix, file_item, timestamp_tag, extension_tag) for file_item in files]
+            futures = [executor.submit(self.rename_file, folder_path, excluded_exts, main_extension, metadata_extension, key_prefix, file_item, timestamp_tag, extension_tag) for file_item in files]
             concurrent.futures.wait(futures)
 
 
     def rename_file(
             self,
             folder_path: str,
-            excluded_extension: str,
+            excluded_extensions: List[str],
             main_extension: str,
             metadata_extension: str,
             key_prefix: str,
@@ -322,7 +327,8 @@ class S3Reader(BaseReader):
             extension_tag: str = 'fileextension'
         ):
 
-        if file_name_with_extension.endswith(excluded_extension):
+        f_extension = os.path.splitext(file_name_with_extension)[1][1:]  # get extension without the leading dot
+        if self.excluded_exts is not None and f_extension in self.excluded_exts:
             return
 
         if main_extension is not None:

@@ -79,7 +79,7 @@ def file_upload(
                 with open(file_path + '.saia.metadata', 'w') as file:
                     file.write(json.dumps(response_body, indent=2))
             end_time = time.time()
-            message_response = f"{file_name},{response_body['indexStatus']},{response_body['name']},{response_body['id']},{end_time - start_time:.2f}"
+            message_response = f"{response_body['indexStatus']}, {file_name},{response_body['name']},{response_body['id']},{end_time - start_time:.2f} seconds"
         logging.getLogger().info(message_response)
     except Exception as e:
         if e.response['Error']['Code'] == '401':
@@ -112,7 +112,7 @@ def operation_log_upload(
                 accumulating_handler = handler
                 break
         if not accumulating_handler:
-            logging.getLogger().Warning("AccumulatingLogHandler not found in the root logger's handlers.")
+            logging.getLogger().warning("AccumulatingLogHandler not found in the root logger's handlers.")
             return
 
         data = {
