@@ -334,11 +334,6 @@ class SharePointReader:
         response_json = json.loads(response_text)
         parent_reference = response_json.get("parentReference")
 
-        # Define the regex pattern to match '&(amp;)+'
-        pattern = r'&(amp;)+'
-
-        fields = {key: re.sub(pattern, '&', str(value)) for key, value in response_json.get("fields").items() if (key in self.sharepoint_metadata_policy['fields']) == self.sharepoint_metadata_policy['include_fields']}
-                
         metadata =  {
             "file_id": id,
             "name": item.get("name"),
@@ -347,6 +342,14 @@ class SharePointReader:
             "eTag": item.get("eTag")[1:-1],
             "lastModifiedDateTime": response_json.get("lastModifiedDateTime")
         }
+        if self.sharepoint_metadata_policy is None:
+            return metadata
+
+        # Define the regex pattern to match '&(amp;)+'
+        pattern = r'&(amp;)+'
+
+        fields = {key: re.sub(pattern, '&', str(value)) for key, value in response_json.get("fields").items() if (key in self.sharepoint_metadata_policy['fields']) == self.sharepoint_metadata_policy['include_fields']}
+                
         
         metadata.update(fields)
         fields_to_rename = self.sharepoint_metadata_policy['field_rename']
