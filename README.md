@@ -37,10 +37,8 @@ python -m venv venv
 ```bash
 # install poetry first
 pip install poetry
-# fist time
+# every time you update
 poetry install
-# on repository updates
-poetry update
 ```
 
 3. Set the `PYTHONPATH` environment variable to the path of the current directory:
