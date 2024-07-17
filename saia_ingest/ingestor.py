@@ -412,6 +412,7 @@ def ingest_s3(
         prefix = s3_level.get('prefix', None)
         embeddings_model = embeddings_level.get('model', 'text-embedding-ada-002')
         required_exts = s3_level.get('required_exts', None)
+        excluded_exts = s3_level.get('excluded_exts', None)
         use_local_folder = s3_level.get('use_local_folder', False)
         local_folder = s3_level.get('local_folder', None)
         use_metadata_file = s3_level.get('use_metadata_file', False)
@@ -445,6 +446,7 @@ def ingest_s3(
             aws_access_secret=aws_secret_key,
             timestamp=timestamp,
             required_exts=required_exts,
+            excluded_exts=excluded_exts,
             use_local_folder=use_local_folder,
             local_folder=local_folder,
             use_metadata_file=use_metadata_file,

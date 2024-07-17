@@ -22,6 +22,9 @@ s3: # contact the provider for the following information
   reprocess_failed_files_file: !!str 'string' # Full path to a file
   reprocess_valid_status_list: # List of Statuses to process, valid values Unknown, Starting, Failed, Pending, Success
   delete_local_folder: !!bool True|False (default) # Delete temporary folder if created
+  excluded_exts: # list of excluded extensions, by default it is suggested to include the following: raw, metadata
+    - !!str 'metadata'
+    - !!str 'raw'
 saia:
   base_url: !!str 'string' # GeneXus Enterprise AI Base URL
   api_token: !!str 'string'
