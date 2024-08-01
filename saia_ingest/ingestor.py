@@ -22,7 +22,7 @@ from atlassian_jira.jirareader import JiraReader
 from atlassian_confluence.confluencereader import ConfluenceReader
 from amazon_s3.s3reader import S3Reader
 from gdrive.gdrive_reader import GoogleDriveReader
-from sharepoint.sharepoint_reader import SharePointReader
+from sharepoint.sharepoint_ingestor import Sharepoint_Ingestor
 
 from llama_hub.github_repo import GithubClient, GithubRepositoryReader
 
@@ -591,130 +591,9 @@ def ingest_gdrive(
     finally:
         return ret
 
-def reprocess_failed_files_sahrepoint(
-        saia_profile:str,
-        download_directory:str,
-        reprocess_valid_status_list: List,
-        max_parallel_executions: int,
-        ragApi: RagApi,
-        loader: SharePointReader
-    ) -> List:
-    logging.getLogger().info(f"Checking for files to sync with {saia_profile} profile.")
-    docs_to_reprocess = search_failed_files(download_directory, reprocess_valid_status_list)
-    
-    if len(docs_to_reprocess) > 0:
-        logging.getLogger().info(f"Deleting files with status: {reprocess_valid_status_list}.")
-        with concurrent.futures.ThreadPoolExecutor(max_workers=max_parallel_executions) as executor:
-            futures = [executor.submit(ragApi.delete_profile_document, saia_profile, d['id']) for d in docs_to_reprocess]
-        concurrent.futures.wait(futures)
-
-        logging.getLogger().info(f"Downloading files from sharepoint.")
-        
-        with concurrent.futures.ThreadPoolExecutor(max_workers=max_parallel_executions) as executor:
-            futures = [executor.submit(loader.download_file_by_id, d['name'], find_value_by_key(d['metadata'], 'file_id'), os.path.dirname(d['file_path'][0:(len('.saia.metadata'))*-1])) for d in docs_to_reprocess]
-        concurrent.futures.wait(futures)
-            
-        return [d['file_path'][0:(len('.saia.metadata'))*-1] for d in docs_to_reprocess]
-
-def download_all_files_sharepoint(
-        download_directory: str,
-        sharepoint_sites_names:str,
-        depth: int,
-        loader: SharePointReader
-    ) -> List:
-    
-    files = {}
-    
-    for site in sharepoint_sites_names:
-        for drive in sharepoint_sites_names[site]:
-            drive_download_path = os.path.join(download_directory, site, drive)
-            drive_files = loader.download_files_from_folder(
-                sharepoint_site_name=site,
-                sharepoint_drive_name=drive,
-                depth=depth,
-                download_dir = drive_download_path
-            )
-            files.update(drive_files)
-        
-    return files.keys()
-
 def ingest_sharepoint(
         configuration: str,
         start_time: datetime,
     ) -> bool:
-    ret = True
-    try:
-        config = get_yaml_config(configuration)
-        sharepoint_level = config.get('sharepoint', {})
-        client_id= sharepoint_level.get('client_id', None) 
-        client_secret= sharepoint_level.get('client_secret', None) 
-        tenant_id= sharepoint_level.get('tenant_id', None) 
-        sharepoint_sites_names= sharepoint_level.get('sharepoint_sites_names', None) 
-        sharepoint_metadata_policy = sharepoint_level.get('metadata_policy', None) 
-        download_dir = sharepoint_level.get('download_dir', None)
-        depth= sharepoint_level.get('depth', 0)
-        reprocess_failed_files = sharepoint_level.get('reprocess_failed_files', False)
-        reprocess_valid_status_list = sharepoint_level.get('reprocess_valid_status_list', [])
-        
-        # Saia
-        saia_level = config.get('saia', {})
-        saia_base_url = saia_level.get('base_url', None)
-        saia_api_token = saia_level.get('api_token', None)
-        saia_profile = saia_level.get('profile', None)
-        max_parallel_executions = saia_level.get('max_parallel_executions', 1)
-        upload_operation_log = saia_level.get('upload_operation_log', True)
-        
-        ragApi = RagApi(saia_base_url,saia_api_token, saia_profile)
-
-        # Default to ingest directly to index
-        loader = SharePointReader(
-            client_id=client_id,
-            client_secret=client_secret,
-            tenant_id=tenant_id,
-            sharepoint_sites_names = sharepoint_sites_names,
-            sharepoint_metadata_policy = sharepoint_metadata_policy
-        )
-        
-        download_directory = download_dir if download_dir else tempfile.TemporaryDirectory().name        
-    
-        if saia_base_url is not None:
-            # Use Saia API to ingest
-            files_to_upload = reprocess_failed_files_sahrepoint(
-                                    saia_profile,
-                                    download_directory,
-                                    reprocess_valid_status_list,
-                                    max_parallel_executions,
-                                    ragApi,
-                                    loader) if reprocess_failed_files else download_all_files_sharepoint(
-                                                                                download_directory,
-                                                                                sharepoint_sites_names,
-                                                                                depth,
-                                                                                loader)            
-            if len(files_to_upload) > 0:
-                logging.getLogger().info(f"Uploading files to {saia_profile}")
-                
-                with concurrent.futures.ThreadPoolExecutor(max_workers=max_parallel_executions) as executor:
-                    futures = [executor.submit(saia_file_upload, saia_base_url, saia_api_token, saia_profile, file_item, True, '.metadata') for file_item in files_to_upload]
-                concurrent.futures.wait(futures)
-                
-                logging.getLogger().info("Upload finished.")
-            else:
-                logging.getLogger().info("No files to upload")
-            
-            if upload_operation_log:
-                end_time = time.time()
-                message_response = f"bulk ingest ({end_time - start_time:.2f}s)"
-                ret = operation_log_upload(saia_base_url, saia_api_token, saia_profile, "ALL", message_response, 0)
-
-        else:
-            ## Fallback to directly ingest to vectorstore
-            logging.getLogger().info(f"In order to directly ingest to vectorstore please contact support.")
-            ret = False
-
-    except Exception as e:
-        logging.getLogger().error(f"Error: {e}")
-        ret = False
-    finally:
-        end_time = time.time()
-        logging.getLogger().info(f"time: {end_time - start_time:.2f}s")
-        return ret
+    ingestor = Sharepoint_Ingestor(configuration, start_time)
+    return ingestor.execute()

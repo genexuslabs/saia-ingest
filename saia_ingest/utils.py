@@ -3,6 +3,7 @@ import json
 import magic
 import logging
 import yaml
+import requests
 
 def get_yaml_config(yaml_file):
     # Load the configuration from the YAML file
@@ -99,3 +100,30 @@ def search_fields_values(directory, fields_to_exclude = []):
     for key  in dict_of_sets:
         dict_of_sets[key] = list(set(dict_of_sets[key]))
     return dict_of_sets
+
+def get_configuration(configuration_object, name):
+    specific_configuration = configuration_object.get(name, None)
+    if not specific_configuration:
+        raise ValueError(name.capitalize() + 'configuration missing. Please check your config file.')
+    return specific_configuration
+
+def do_get(token, endpoint):
+        """
+        Do a get to the scepified endpoint.
+
+        Raises:
+            Exception: If status code is not 200 or value is not in the response json fields.
+        """
+        
+        response = requests.get(
+            url=endpoint,
+            headers=get_authorization_header(token),
+        )
+        
+        if response.status_code != 200:
+            raise ValueError(response.json()["error"])
+        
+        return response
+
+def get_authorization_header(token):
+    return {"Authorization": f"Bearer {token}"}
