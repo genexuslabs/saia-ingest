@@ -5,6 +5,7 @@ import logging
 from dotenv import load_dotenv, find_dotenv
 import json
 import concurrent.futures
+from saia_ingest.profile_utils import operation_log_upload
 
 GET_METHOD = "GET"
 POST_METHOD = "POST"
@@ -25,7 +26,7 @@ class RagApi:
         
         max_parallel_executions (Optional[str]): The maximum parallel execution allowed. Default 5
     """
-    def __init__(self, base_url, api_token, profile, max_parallel_executions = 5):
+    def __init__(self, base_url, api_token, profile, max_parallel_executions):
         """
         Inits a Rag_api instance.
 
@@ -35,22 +36,21 @@ class RagApi:
 
         if not base_url:
             raise ValueError('Invalid value: base_url')
+        self.base_url = base_url
         
         if not api_token:
             raise ValueError('Invalid value: api_token')
-
         self.api_token = api_token
-        self.base_url = base_url
-        self.profile = profile
-        self.max_parallel_executions = max_parallel_executions
         self.base_header = {
             "Authorization": f"Bearer {self.api_token}",
             "Accept": "application/json"
         }
 
+
         if profile and not self.is_valid_profile(profile):
             raise ValueError('Invalid value: profile')
-
+        self.profile = profile
+        self.max_parallel_executions = max_parallel_executions
 
     def set_profile(self, profile_name):
         """
@@ -255,7 +255,7 @@ class RagApi:
             return None
         return json_object
     
-    def upload_document_with_metadata_file(self, file_path, metadata = None, profile_name = ''):
+    def upload_document_with_metadata_file(self, file_path, metadata = None):
         '''
         Upload a document as multipart.
         
@@ -266,10 +266,9 @@ class RagApi:
                                            If metadata is not a path, it is supposed to be a json format string.
             profile_name (Optional[str]):  Name of the RAG assistant we want to update. Default self.profile
         '''
-        profile = profile_name or self.profile
         
-        url = f"{self.base_url}/v1/search/profile/{profile}/document"
-        start_time = time.time()
+        url = f"{self.base_url}/v1/search/profile/{self.profile}/document"
+        
         files = {
             'file': open(file_path, 'rb')
         }
@@ -283,14 +282,6 @@ class RagApi:
         
         response_body = response.json()
         
-        end_time = time.time()
-        if response.ok:
-            message_response = f"{os.path.basename(file_path)},{response_body['indexStatus']},{response_body['name']},{response_body['id']},{end_time - start_time:.2f}"
-        else:
-            message_response = f"{os.path.basename(file_path)},Error,{response_body.get('errors')[0].get('id')},{response_body.get('errors')[0].get('description')}"
-
-        logging.getLogger().info(message_response)
-        
         return response_body
 
     def delete_all_documents(self):
@@ -303,7 +294,6 @@ class RagApi:
                     futures = [executor.submit(self.delete_profile_document, d['id'], self.profile) for d in docs['documents']]
             concurrent.futures.wait(futures)
         
-    
     def ask_rag_agent(self, prompt, profile_name):
         '''
         Given a prompt, make a question to an agent.
@@ -316,3 +306,6 @@ class RagApi:
         name = profile_name or self.profile
         resp = self._do_request(POST_METHOD, url, headers=self.base_header, json={"profile": name, "question": prompt})
         return resp.json()
+    
+    def operation_log_upload(self, step, name, level):
+        return operation_log_upload(self.base_url, self.api_token, self.profile, step, name, level)
