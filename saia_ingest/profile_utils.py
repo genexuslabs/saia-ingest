@@ -69,7 +69,7 @@ def file_upload(
                 }
             )
         response_body = response.json()
-        # TODO: map the document to the ID and save it
+
         ret = response.ok
         if response.status_code != 200:
             message_response = f"{file_name},Error,{response.status_code}: {response.text}"
@@ -249,3 +249,77 @@ def get_documents(
     finally:
         return new_list
 
+
+def get_bearer_token(
+        base_url: str,
+        client_id: str,
+        client_secret: str,
+        scope: str,
+        grant_type: str,
+    ) -> str:
+    access_token = ""
+    data = {
+        'client_id': client_id,
+        'client_secret': client_secret,
+        'scope': scope,
+        'grant_type': grant_type
+    }
+    response = requests.post(base_url, data=data)
+    if response.status_code == 200:
+        token_response = response.json()
+        access_token = token_response['access_token']
+    else:
+        error_msg = f"Error {response.status_code} getting token: {response.text}"
+        raise Exception(error_msg)
+
+    return access_token
+
+
+def get_json_response_from_url(
+        base_url: str,
+        bearer_token: str,
+        h_subscription_key: str,
+        h_subscription_value: str
+    ) -> tuple[list[str], str]:
+    new_list = []
+    next_url_href = None
+    try:
+        url = base_url
+        response = requests.get(
+            url, 
+            headers={
+                'Authorization': f'Bearer {bearer_token}',
+                h_subscription_key: h_subscription_value,
+                'Content-Type': DefaultHeaders.JSON_CONTENT_TYPE
+            })
+        if response.status_code != 200:
+            logging.getLogger().error(f"{response.status_code}: {response.text}")
+        document_result = response.json()
+        new_list = list(document_result['elements'])
+        links = list(document_result['links'])
+        for link in links:
+            if link.get("rel", None) == "next":
+                next_url_href = link.get("href", None)
+                break
+
+    except Exception as e:
+        logging.getLogger().error(f"Error elements {e}")
+    finally:
+        return (new_list, next_url_href)
+
+
+def search_failed_to_delete(files: list[str]) -> list[str]:
+    """Check if local metadata exists and return a list of Document ids to delete"""
+    file_list = []
+    for file in files:
+        item_file_metadata = f"{file}.saia.metadata"
+        if os.path.exists(item_file_metadata):
+            with open(item_file_metadata, 'r') as f:
+                try:
+                    data = json.load(f)
+                    id = data.get('id', None)
+                    if id is not None:
+                        file_list.append(id)
+                except json.JSONDecodeError:
+                    logging.getLogger().error(f"Error decoding JSON in file: {item_file_metadata}")
+    return file_list

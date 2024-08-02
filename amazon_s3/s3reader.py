@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Union
 from urllib.parse import quote, unquote
 from saia_ingest.utils import detect_file_extension
+from saia_ingest.profile_utils import is_valid_profile, file_upload, file_delete, operation_log_upload, sync_failed_files, get_bearer_token, get_json_response_from_url
 
 from llama_index import download_loader
 from llama_index.readers.base import BaseReader
@@ -27,6 +28,7 @@ class S3Reader(BaseReader):
         region_name: Optional[str] = None,
         bucket: str,
         key: Optional[str] = None,
+        keys_from_file: Optional[str] = None,
         prefix: Optional[str] = "",
         file_extractor: Optional[Dict[str, Union[str, BaseReader]]] = None,
         required_exts: Optional[List[str]] = None,
@@ -46,6 +48,11 @@ class S3Reader(BaseReader):
         use_augment_metadata: Optional[bool] = False,
         process_files: Optional[bool] = False,
         max_parallel_executions: Optional[int] = 10,
+        verbose: Optional[bool] = False,
+        download_dir: Optional[str] = None,
+        source_base_url: Optional[str] = None,
+        source_doc_id: Optional[str] = None,
+        alternative_document_service: Optional[Dict[str, str]] = None,
         **kwargs: Any,
     ) -> None:
         """Initialize S3 bucket and key, along with credentials if needed.
@@ -73,11 +80,13 @@ class S3Reader(BaseReader):
         aws_access_id (Optional[str]): provide AWS access key directly.
         aws_access_secret (Optional[str]): provide AWS access key directly.
         s3_endpoint_url (Optional[str]): provide S3 endpoint URL directly.
+        download_dir (Optional[str]): The directory where the files should be downloaded.
         """
         super().__init__(*args, **kwargs)
 
         self.bucket = bucket
         self.key = key
+        self.keys_from_file = keys_from_file
         self.prefix = prefix
 
         self.file_extractor = file_extractor
@@ -102,9 +111,32 @@ class S3Reader(BaseReader):
         self.use_metadata_file = use_metadata_file
         self.use_augment_metadata = use_augment_metadata
         self.max_parallel_executions = max_parallel_executions
+        self.alternative_document_service = alternative_document_service
+        self.source_base_url = source_base_url
+        self.source_doc_id = source_doc_id
 
         self.s3 = None
         self.s3_client = None
+
+        self.verbose = verbose
+        self.download_dir = download_dir if download_dir else tempfile.mkdtemp()
+        if not os.path.exists(self.download_dir):
+            os.makedirs(self.download_dir)
+        
+        self.json_extension = '.json'
+        self.metadata_extension = '.metadata'
+        self.bearer_token = None
+        self.element_ids = set()
+        self.element_dict = {}
+        self.skip_dict = {}
+        self.skip_count = 0
+        self.total_count = 0
+
+        # Validations
+        self.keys = None
+        if self.keys_from_file is not None:
+            with open(keys_from_file, 'r') as file:
+                self.keys = json.load(file)
 
 
     def get_versions(self, key) -> Any:
@@ -115,7 +147,7 @@ class S3Reader(BaseReader):
                 version_id = version['VersionId']
                 is_current = version['IsLatest']
                 last_modified = version['LastModified']
-                print(f"Version ID: {version_id}, Is Current: {is_current}, Last Modified: {last_modified}")
+                logging.getLogger().info(f"Version ID: {version_id}, Is Current: {is_current}, Last Modified: {last_modified}")
         return versions
 
 
@@ -154,8 +186,123 @@ class S3Reader(BaseReader):
         except Exception as e:
             logging.getLogger().error(f"Error writing to {file_path}: {e}")
 
+    def get_files_from_url(self) -> list[str]:
+        """Return a list of documents from an alternative URL"""
+        file_paths = []
 
-    def get_files(self) -> [str]:
+        bearer_params = self.alternative_document_service.get('bearer_token', None)
+        if bearer_params is None:
+            raise Exception("Missing 'bearer_token' in 'alternative_document_service' parameters")
+
+        url = bearer_params.get('url', None)
+        client_id = bearer_params.get('client_id', None)
+        client_secret = bearer_params.get('client_secret', None)
+        scope = bearer_params.get('scope', None)
+        grant_type = bearer_params.get('grant_type', None)
+
+        base_url = self.alternative_document_service.get('base_url', None)
+        s_key = self.alternative_document_service.get('select_key', None)
+        s_value = self.alternative_document_service.get('select_value', None)
+        f_key = self.alternative_document_service.get('filter_key', None)
+        o_key = self.alternative_document_service.get('order_key', None)
+        o_value = self.alternative_document_service.get('order_value', None)
+        i_key = self.alternative_document_service.get('start_index_key', None)
+        i_value = self.alternative_document_service.get('start_index_value', None)
+        c_key = self.alternative_document_service.get('count_key', None)
+        c_value = self.alternative_document_service.get('count_value', None)
+
+        f_values = self.alternative_document_service.get('filter_values', None)
+
+        min_filter_date = self.alternative_document_service.get('min_filter_date', None)
+        if min_filter_date is None:
+            min_filter_date = self.timestamp.strftime("%Y-%m-%dT%H:%M:%SZ")
+
+        h_subscription_key = self.alternative_document_service.get('subscription_key', None)
+        h_subscription_value = self.alternative_document_service.get('subscription_value', None)
+
+        if h_subscription_key is None:
+            raise Exception("Missing 'subscription_key' in 'alternative_document_service' parameters")
+        if h_subscription_value is None:
+            raise Exception("Missing 'subscription_value' in 'alternative_document_service' parameters")
+
+        if f_values is None or f_values == []:
+            raise Exception("Missing 'filter_values' items in 'alternative_document_service' parameters")
+
+        if self.bearer_token is None:
+            self.bearer_token = get_bearer_token(url, client_id, client_secret, scope, grant_type)
+
+        temp_dir = self.download_dir
+        skip_count = 0
+        logging.getLogger().info(f"Downloading files from '{self.bucket}' to {temp_dir}")
+
+        for f_item in f_values:
+            f_item_name = f_item.get('name', None)
+            f_item_where = f_item.get('where', None)
+            if f_item_name is None or f_item_where is None:
+                logging.getLogger().error(f"Missing 'name' or 'where' in 'alternative_document_service' parameters")
+                continue
+            # Update datetime filter
+            f_value = f_item_where.replace('min_filter_date', min_filter_date)
+            complete_url = f"{base_url}?{s_key}={s_value}&{f_key}={f_value}&{o_key}={o_value}&{i_key}={i_value}&{c_key}={c_value}"
+
+            all_elements = []
+            while complete_url is not None:
+                elements, next_url_href = get_json_response_from_url(complete_url, self.bearer_token, h_subscription_key, h_subscription_value)
+                if elements is None or len(elements) == 0:
+                    complete_url = None
+                    continue
+
+                if self.verbose:
+                    logging.getLogger().info(f"{f_item_name} {len(elements)}")
+
+                for item in elements:
+                    self.total_count += 1
+
+                    doc_num = item.get('docnum', None)
+                    file_type = item.get('filetype', 'None')
+
+                    if file_type is not None and not self.is_supported_extension(file_type.lower()):
+                        skip_count += 1
+                        self.skip_dict[doc_num] = item
+                        logging.getLogger().debug(f"{doc_num} with '{file_type}' extension discarded")
+                        continue
+                    
+                    filepath = f"{temp_dir}/{doc_num}"
+                    original_key = f"{self.prefix}/{doc_num}" if self.prefix else doc_num
+                    self.s3.meta.client.download_file(self.bucket, original_key, filepath)
+
+                    # add item to be processed later
+                    self.element_ids.add(doc_num)
+                    self.element_dict[doc_num] = item
+
+                    logging.getLogger().debug(f" {original_key} to {doc_num}")
+
+                complete_url = f"{base_url}{next_url_href}" if next_url_href is not None else None
+
+            all_elements.extend(elements)
+
+        self.skip_count = skip_count
+        if self.verbose:
+            denodo_file = self.save_debug(self.element_dict, prefix='denodo')
+
+        if self.process_files:
+            self.rename_files(temp_dir, self.excluded_exts, None, self.json_extension, self.prefix + '/', 'fileextension')
+
+        file_paths = [os.path.join(temp_dir, f) for f in os.listdir(temp_dir) if os.path.isfile(os.path.join(temp_dir, f)) and not f.endswith((self.json_extension, self.metadata_extension))]
+        return file_paths
+
+
+    def save_debug(self, serialized_docs: any, prefix:str) -> str:
+        debug_folder = os.path.join(os.getcwd(), 'debug')
+        now = datetime.now()
+        formatted_timestamp = now.strftime("%Y%m%d%H%M%S")
+        filename = '%s_%s.json' % (prefix, formatted_timestamp)
+        file_path = os.path.join(debug_folder, filename)
+        with open(file_path, 'w', encoding='utf8') as json_file:
+            json.dump(serialized_docs, json_file, ensure_ascii=False, indent=4)
+        return file_path
+
+    def get_files(self) -> list[str]:
         """Return a list of documents"""
         skip_count = 0
         count = 0
@@ -164,7 +311,7 @@ class S3Reader(BaseReader):
         if self.use_local_folder:
 
             if self.process_files:
-                self.rename_files(self.local_folder, self.excluded_exts, None, '.json', self.prefix + '/', 'fileextension')
+                self.rename_files(self.local_folder, self.excluded_exts, None, self.json_extension, self.prefix + '/', 'fileextension')
 
             for f in os.listdir(self.local_folder):
                 f_extension = os.path.splitext(f)[1][1:]  # get extension without the leading dot
@@ -173,38 +320,25 @@ class S3Reader(BaseReader):
                 if not os.path.isfile(os.path.join(self.local_folder, f)):
                     continue
                 suffix = Path(f).suffix.lower().replace('.', '')
-                if self.required_exts is not None and suffix not in self.required_exts:
+                if not self.is_supported_extension(suffix):
                     continue
                 file_paths.append(os.path.join(self.local_folder, f))
 
             return file_paths
 
-        s3 = boto3.resource("s3")
-        s3_client = boto3.client("s3")
-        if self.aws_access_id:
-            session = boto3.Session(
-                region_name=self.region_name,                
-                aws_access_key_id=self.aws_access_id,
-                aws_secret_access_key=self.aws_access_secret,
-                aws_session_token=self.aws_session_token,
-            )
-            s3 = session.resource("s3", region_name=self.region_name)
-            s3_client = session.client("s3", region_name=self.region_name, endpoint_url=self.s3_endpoint_url)
-
-        temp_dir = tempfile.mkdtemp()
+        temp_dir = self.download_dir
 
         logging.getLogger().info(f"Downloading files from '{self.bucket}' to {temp_dir}")
 
-
         if self.key:
-            suffix = Path(self.key).suffix
-            filepath = f"{temp_dir}/{self.key}"
-            original_key = f"{self.prefix}/{self.key}" if self.prefix else self.key
-            s3.meta.client.download_file(self.bucket, original_key, filepath)
-            file_paths.append(filepath)
-            logging.getLogger().info(f" {original_key} to {self.key}")
+            self.download_s3_file(self.key, temp_dir, file_paths)
+            count = 1
+        elif self.keys:
+            for key in self.keys:
+                self.download_s3_file(key, temp_dir, file_paths)
+            count = len(self.keys)
         else:
-            bucket = s3.Bucket(self.bucket)
+            bucket = self.s3.Bucket(self.bucket)
             for i, obj in enumerate(bucket.objects.filter(Prefix=self.prefix)):
                 if self.num_files_limit is not None and i > self.num_files_limit:
                     break
@@ -212,10 +346,7 @@ class S3Reader(BaseReader):
                 suffix = Path(obj.key).suffix
 
                 is_dir = obj.key.endswith("/")  # skip folders
-                is_bad_ext = (
-                    self.required_exts is not None
-                    and suffix not in self.required_exts  # skip other extentions
-                )
+                is_bad_ext = not self.is_supported_extension(suffix)
 
                 if is_dir or is_bad_ext:
                     continue
@@ -242,30 +373,46 @@ class S3Reader(BaseReader):
 
                 try:
                     # https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/s3/client/download_file.html#S3.Client.download_file
-                    s3.meta.client.download_file(self.bucket, original_key, filepath)
+                    self.s3.meta.client.download_file(self.bucket, original_key, filepath)
                     file_paths.append(filepath)
-                    logging.getLogger().info(f" {obj.key} to {temp_name}")
+                    logging.getLogger().debug(f" {obj.key} to {temp_name}")
                 except Exception as e:
                     if e.response['Error']['Code'] == '404':
-                        logging.getLogger().info(f"The object '{obj.key}' does not exist.")
+                        logging.getLogger().error(f"The object '{obj.key}' does not exist.")
                     elif e.response['Error']['Code'] == '403':
-                        logging.getLogger().info(f"Forbidden access to '{obj.key}'")
+                        logging.getLogger().error(f"Forbidden access to '{obj.key}'")
                     else:
                         raise e
         
-        logging.getLogger().info(f"Skipped: {skip_count} Total: {count}")
+        self.total_count = count
+        self.skip_count = skip_count
 
         if self.process_files:
-            self.rename_files(temp_dir, self.excluded_exts, None, '.json', self.prefix + '/', 'fileextension')
+            self.rename_files(temp_dir, self.excluded_exts, None, self.json_extension, self.prefix + '/', 'fileextension')
 
-        file_paths = [os.path.join(temp_dir, f) for f in os.listdir(temp_dir) if os.path.isfile(os.path.join(temp_dir, f)) and not f.endswith('.json')]
+        file_paths = [os.path.join(temp_dir, f) for f in os.listdir(temp_dir) if os.path.isfile(os.path.join(temp_dir, f)) and not f.endswith((self.json_extension, self.metadata_extension))]
         return file_paths
+
+
+    def download_s3_file(self, key: str, temp_dir: str, file_paths: list):
+        """Download a single file"""
+        filepath = f"{temp_dir}/{key}"
+        original_key = f"{self.prefix}/{key}" if self.prefix else key
+        self.s3.meta.client.download_file(self.bucket, original_key, filepath)
+        file_paths.append(filepath)
+        logging.getLogger().debug(f" {original_key} to {key}")
+
+    def is_supported_extension(self, suffix: str) -> bool:
+        """Discard extension not listed in required_exts"""
+        if self.required_exts is None or suffix == '':
+            return True
+        return suffix in self.required_exts
 
 
     def load_data(self) -> List[Document]:
         """Load file(s) from S3."""
         
-        file_paths = self.get_files()            
+        file_paths = self.get_files() if self.alternative_document_service is None else self.get_files_from_url()
         temp_dir = os.path.dirname(file_paths[0]) if len(file_paths) > 0 else None
         try:
             from llama_index import SimpleDirectoryReader
@@ -377,35 +524,69 @@ class S3Reader(BaseReader):
 
                     new_path = os.path.join(folder_path, new_file_name)
                     # Rename the file
+                    if os.path.exists(new_path):
+                        os.remove(new_path)
                     os.rename(file_path, new_path)
                 except Exception as e:
-                    logging.getLogger().error(f"Error renaming file '{file_name}' using extension '{str_extension}'")
+                    logging.getLogger().error(f"Error renaming file '{file_name}' using extension '{str_extension}' {e}")
                     return
 
 
     def augment_metadata(
             self,
-            initial_metadata: dict,
+            input_metadata: dict,
             timestamp_tag: str = 'publishdate',
         ) -> dict:
         '''Preprocess and add metadata'''
 
-        id = initial_metadata.get('documentid', '')
-        name = initial_metadata.get('filename', id)
-        activity = initial_metadata.get('disclosureactivity', '')
-        date_string = initial_metadata.get(timestamp_tag, '')
+        # Remove entries where the value is not desired
+        initial_metadata = {k: v for k, v in input_metadata.items() if v not in [None, 'null', '']}
+        try:
+            id = initial_metadata.get('documentid', '')
+            name = initial_metadata.get('filename', id)
+            activity = initial_metadata.get('disclosureactivity', '')
+            language = initial_metadata.get('documentlanguage', '')
+            date_string = initial_metadata.get(timestamp_tag, '')
+            date_string_description = date_string
+            date_string_format = "%m/%d/%Y"
+            dept_id = None
+            doc_url = None
 
-        if date_string is not None:
-            # Change from MM/DD/YYYY to YYYYMMDD format
-            date_object = datetime.strptime(date_string, "%m/%d/%Y")
-            formatted_date = date_object.strftime("%Y%m%d")
-            year = date_object.strftime("%Y")
-            # Add year
-            initial_metadata[timestamp_tag] = formatted_date
-            initial_metadata['year'] = year
+            item_metadata_from_service = self.element_dict.get(id, None)
+            if item_metadata_from_service is not None:
+                initial_metadata['filename'] = item_metadata_from_service.get('docname', name)
+                initial_metadata['disclosureactivity'] = item_metadata_from_service.get('stagedesc', activity)
+                initial_metadata['documentlanguage'] = item_metadata_from_service.get('language', language)
+                date_string = item_metadata_from_service.get('approvaldate', date_string)
+                date_string_format = "%Y-%m-%dT%H:%M:%S"
+                dept_id = item_metadata_from_service.get('deptid', None)
+                doc_url = item_metadata_from_service.get('docurl', None)
 
-        description = f"{name} | {date_string} | {activity}"
+            if dept_id is not None:
+                initial_metadata['deptid'] = dept_id
 
-        initial_metadata['description'] = description
+            if date_string is not None:
+                # Change from MM/DD/YYYY to YYYYMMDD format
+                date_object = datetime.strptime(date_string, date_string_format)
+                formatted_date = date_object.strftime("%Y%m%d")
+                date_string_description = f"{date_object.month}/{date_object.day}/{date_object.year}"
+                year = date_object.strftime("%Y")
+                # Add year
+                initial_metadata[timestamp_tag] = formatted_date
+                initial_metadata['year'] = year
+
+            if self.source_base_url is not None and self.source_doc_id is not None:
+                if doc_url is not None:
+                    initial_metadata['url'] = doc_url
+                else:
+                    # Update URL
+                    source_url = f"{self.source_base_url}?{self.source_doc_id}={id}"
+                    initial_metadata['url'] = source_url
+
+            description = f"{name} | {date_string_description} | {activity}"
+
+            initial_metadata['description'] = description
+        except Exception as e:
+            logging.getLogger().error(f"Error augmenting metadata for {id} {e}")
 
         return initial_metadata
