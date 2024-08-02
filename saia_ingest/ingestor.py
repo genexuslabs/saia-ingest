@@ -13,7 +13,7 @@ from langchain_openai import OpenAIEmbeddings
 from langchain_community.vectorstores import Pinecone
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 
-from saia_ingest.profile_utils import is_valid_profile, file_upload, file_delete, operation_log_upload, sync_failed_files
+from saia_ingest.profile_utils import is_valid_profile, file_upload, file_delete, operation_log_upload, sync_failed_files, search_failed_to_delete
 from saia_ingest.rag_api import RagApi
 from saia_ingest.utils import get_yaml_config, get_metadata_file, load_json_file, search_failed_files, find_value_by_key
 
@@ -214,7 +214,7 @@ def ingest_confluence(
                     for item in list_documents:
                         documents.append(item)
                 except Exception as e:
-                    print(f"Error processing {page_ids}: {e}")
+                    logging.getLogger().error(f"Error processing {page_ids}: {e}")
         elif space_keys is not None:
             for key in space_keys:
                 try:
@@ -383,7 +383,7 @@ def saia_file_upload(
         file_item: str,
         use_metadata_file: bool = False,
         metadata_extension: str = '.json'
-    ):
+    ) -> bool:
     ret = True
 
     file = os.path.normpath(file_item)
@@ -391,7 +391,8 @@ def saia_file_upload(
     file_name = os.path.basename(file)
 
     metadata_file = get_metadata_file(file_path, file_name, metadata_extension) if use_metadata_file else None
-    file_upload(saia_base_url, saia_api_token, saia_profile, file, file_name, metadata_file, True)
+    ret = file_upload(saia_base_url, saia_api_token, saia_profile, file, file_name, metadata_file, True)
+    return ret
 
 def ingest_s3(
         configuration: str,
@@ -399,6 +400,8 @@ def ingest_s3(
         timestamp: datetime = None,
     ) -> bool:
     ret = True
+    success_count = 0
+    failed_count = 0
     try:
         config = get_yaml_config(configuration)
         s3_level = config.get('s3', {})
@@ -407,6 +410,7 @@ def ingest_s3(
         region = s3_level.get('region', None)
         bucket = s3_level.get('bucket', None)
         key = s3_level.get('key', None)
+        keys_from_file = s3_level.get('keys_from_file', None)
         aws_access_key = s3_level.get('aws_access_key', None)
         aws_secret_key = s3_level.get('aws_secret_key', None)
         prefix = s3_level.get('prefix', None)
@@ -422,6 +426,11 @@ def ingest_s3(
         reprocess_failed_files = s3_level.get('reprocess_failed_files', False)
         reprocess_valid_status_list = s3_level.get('reprocess_valid_status_list', [])
         reprocess_status_detail_list_contains = s3_level.get('reprocess_status_detail_list_contains', [])
+        alternative_document_service = s3_level.get('alternative_document_service', None)
+        source_base_url = s3_level.get('source_base_url', None)
+        source_doc_id = s3_level.get('source_doc_id', None)
+        download_dir = s3_level.get('download_dir', None)
+        verbose = s3_level.get('verbose', False)
 
         # Saia
         saia_level = config.get('saia', {})
@@ -442,6 +451,7 @@ def ingest_s3(
             region_name=region,
             bucket=bucket,
             key=key,
+            keys_from_file=keys_from_file,
             prefix=prefix,
             aws_access_id=aws_access_key,
             aws_access_secret=aws_secret_key,
@@ -454,11 +464,18 @@ def ingest_s3(
             use_augment_metadata=use_augment_metadata,
             process_files=process_files,
             max_parallel_executions=max_parallel_executions,
+            source_base_url=source_base_url,
+            source_doc_id=source_doc_id,
+            alternative_document_service=alternative_document_service,
+            download_dir=download_dir,
+            verbose=verbose
             )
         loader.init_s3()
     
         if saia_base_url is not None:
             # Use Saia API to ingest
+
+            ragApi = RagApi(saia_base_url, saia_api_token, saia_profile)
 
             if reprocess_failed_files:
                 # Clean files with failed state, re upload
@@ -470,16 +487,33 @@ def ingest_s3(
                     futures = [executor.submit(file_delete, saia_base_url, saia_api_token, saia_profile, d) for d in to_delete]
                     concurrent.futures.wait(futures)
             else:
-                file_paths = loader.get_files()
+                file_paths = loader.get_files() if loader.alternative_document_service is None else loader.get_files_from_url()
+
+                saia_file_ids_to_delete = search_failed_to_delete(file_paths)
+                with concurrent.futures.ThreadPoolExecutor(max_workers=max_parallel_executions) as executor:
+                    futures = [executor.submit(ragApi.delete_profile_document, id, saia_profile) for id in saia_file_ids_to_delete]
+                concurrent.futures.wait(futures)
+
             file_path = None
 
             with concurrent.futures.ThreadPoolExecutor(max_workers=max_parallel_executions) as executor:
                 futures = [executor.submit(saia_file_upload, saia_base_url, saia_api_token, saia_profile, file_item, use_metadata_file) for file_item in file_paths]
-                concurrent.futures.wait(futures)
+                for future in concurrent.futures.as_completed(futures):
+                    try:
+                        result = future.result()
+                        if result is True:
+                            success_count += 1
+                        else:
+                            failed_count += 1
+                    except Exception as exc:
+                        logging.getLogger().error(f"General exception: {exc}")
             
             if delete_local_folder and len(file_paths) > 0:
                 file_path = os.path.dirname(file_paths[0])
                 shutil.rmtree(file_path)
+
+            logging.getLogger().info(f"Success: {success_count} Failed: {failed_count} Skip: {loader.skip_count}")
+            logging.getLogger().info(f"Total: {loader.total_count}")
 
             upload_operation_log = saia_level.get('upload_operation_log', False)
             if upload_operation_log:

@@ -5,7 +5,8 @@ Create a `yaml` file under the `config` folder with the following parameters, le
 ```yaml
 s3: # contact the provider for the following information
   bucket: !!str 'string'
-  key: !!str 'string'
+  key: !!str 'string' # Item name from S3
+  keys_from_file: !!str 'string' # Absolute file_path containing a list of S3 items 
   region: !!str 'string'
   aws_access_key: !!str 'string'
   aws_secret_key: !!str 'string'
