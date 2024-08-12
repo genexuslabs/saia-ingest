@@ -178,6 +178,7 @@ def sync_failed_files(
         local_folder: str,
         reprocess_valid_status_list: list = [],
         reprocess_status_detail_list_contains: list = [],
+        reprocess_failed_files_exclude: list = [],
         timestamp: datetime = None
     ) -> (list[str], list[str]):
     ret = True
@@ -192,6 +193,9 @@ def sync_failed_files(
             status_detail = f.get('indexDetail', '')
             doc_timestamp_str = f.get('timestamp', None)
 
+            if name in reprocess_failed_files_exclude:
+                continue
+
             if status_detail == 'Invalid content':
                 continue
 
@@ -200,11 +204,12 @@ def sync_failed_files(
                 continue
 
             if status in reprocess_valid_status_list:
-                if reprocess_status_detail_list_contains is not None:
+                if len(reprocess_status_detail_list_contains) > 0:
                     found = False
                     for item in reprocess_status_detail_list_contains:
                         if item in status_detail:
                             found = True
+                            break
                     if not found:
                         continue
 
@@ -251,12 +256,14 @@ def get_documents(
 
 
 def get_bearer_token(
-        base_url: str,
-        client_id: str,
-        client_secret: str,
-        scope: str,
-        grant_type: str,
+        loader: any
     ) -> str:
+    base_url = loader.bearer_url
+    client_id = loader.bearer_client_id
+    client_secret = loader.bearer_client_secret
+    scope = loader.bearer_scope
+    grant_type = loader.bearer_grant_type
+
     access_token = ""
     data = {
         'client_id': client_id,
@@ -277,7 +284,7 @@ def get_bearer_token(
 
 def get_json_response_from_url(
         base_url: str,
-        bearer_token: str,
+        loader: any,
         h_subscription_key: str,
         h_subscription_value: str
     ) -> tuple[list[str], str]:
@@ -285,13 +292,18 @@ def get_json_response_from_url(
     next_url_href = None
     try:
         url = base_url
-        response = requests.get(
-            url, 
-            headers={
-                'Authorization': f'Bearer {bearer_token}',
-                h_subscription_key: h_subscription_value,
-                'Content-Type': DefaultHeaders.JSON_CONTENT_TYPE
-            })
+        headers = {
+            'Authorization': f'Bearer {loader.bearer_token}',
+            h_subscription_key: h_subscription_value,
+            'Content-Type': DefaultHeaders.JSON_CONTENT_TYPE
+        }
+        response = requests.get(url, headers=headers)
+        if response.status_code == 401:
+            logging.getLogger().error(f"{response.status_code}: {response.text} - Getting new token and retrying...")
+            loader.bearer_token = get_bearer_token(loader)
+            headers['Authorization'] = f'Bearer {loader.bearer_token}'
+            response = requests.get(url, headers=headers)
+
         if response.status_code != 200:
             logging.getLogger().error(f"{response.status_code}: {response.text}")
         document_result = response.json()

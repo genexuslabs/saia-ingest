@@ -1,8 +1,7 @@
 import os
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 import json
-import tempfile
 import concurrent.futures
 
 #from llama_index import QueryBundle
@@ -22,7 +21,6 @@ from atlassian_jira.jirareader import JiraReader
 from atlassian_confluence.confluencereader import ConfluenceReader
 from amazon_s3.s3reader import S3Reader
 from gdrive.gdrive_reader import GoogleDriveReader
-from sharepoint.sharepoint_ingestor import Sharepoint_Ingestor
 
 from llama_hub.github_repo import GithubClient, GithubRepositoryReader
 
@@ -479,10 +477,19 @@ def ingest_s3(
 
             if reprocess_failed_files:
                 # Clean files with failed state, re upload
-                local_file = s3_level.get('reprocess_failed_files_file', None)
-                docs = load_json_file(local_file)
-                to_delete, file_paths = sync_failed_files(docs['documents'], local_folder, reprocess_valid_status_list, reprocess_status_detail_list_contains, timestamp)
+                file_reference = s3_level.get('reprocess_failed_files_reference', None)
+                if file_reference is not None and os.path.exists(file_reference):
+                    local_file = file_reference
+                    docs = load_json_file(local_file)
+                else:
+                    docs = ragApi.get_profile_documents(saia_profile, skip=0, count=999999)
 
+                reprocess_failed_files_exclude = s3_level.get('reprocess_failed_files_exclude', [])
+                t_timestamp = timestamp
+                min_filter_date = alternative_document_service.get('min_filter_date', None)
+                if min_filter_date is not None:
+                    t_timestamp = datetime.fromisoformat(min_filter_date).replace(tzinfo=timezone.utc)
+                to_delete, file_paths = sync_failed_files(docs['documents'], local_folder, reprocess_valid_status_list, reprocess_status_detail_list_contains, reprocess_failed_files_exclude, t_timestamp)
                 with concurrent.futures.ThreadPoolExecutor(max_workers=max_parallel_executions) as executor:
                     futures = [executor.submit(file_delete, saia_base_url, saia_api_token, saia_profile, d) for d in to_delete]
                     concurrent.futures.wait(futures)
@@ -512,7 +519,8 @@ def ingest_s3(
                 file_path = os.path.dirname(file_paths[0])
                 shutil.rmtree(file_path)
 
-            logging.getLogger().info(f"Success: {success_count} Failed: {failed_count} Skip: {loader.skip_count}")
+            logging.getLogger().info(f"Success: {success_count} Skip: {loader.skip_count}")
+            logging.getLogger().info(f"Upload Failed: {failed_count} Download Failed: {loader.error_count}")
             logging.getLogger().info(f"Total: {loader.total_count}")
 
             upload_operation_log = saia_level.get('upload_operation_log', False)
