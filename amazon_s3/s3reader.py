@@ -130,6 +130,8 @@ class S3Reader(BaseReader):
         self.element_dict = {}
         self.skip_dict = {}
         self.skip_count = 0
+        self.error_count = 0
+        self.error_dict = {}
         self.total_count = 0
 
         # Validations
@@ -189,16 +191,20 @@ class S3Reader(BaseReader):
     def get_files_from_url(self) -> list[str]:
         """Return a list of documents from an alternative URL"""
         file_paths = []
+        downloaded_files = []
+        doc_nums = []
 
         bearer_params = self.alternative_document_service.get('bearer_token', None)
         if bearer_params is None:
             raise Exception("Missing 'bearer_token' in 'alternative_document_service' parameters")
 
-        url = bearer_params.get('url', None)
-        client_id = bearer_params.get('client_id', None)
-        client_secret = bearer_params.get('client_secret', None)
-        scope = bearer_params.get('scope', None)
-        grant_type = bearer_params.get('grant_type', None)
+        self.bearer_url = bearer_params.get('url', None)
+        self.bearer_client_id = bearer_params.get('client_id', None)
+        self.bearer_client_secret = bearer_params.get('client_secret', None)
+        self.bearer_scope = bearer_params.get('scope', None)
+        self.bearer_grant_type = bearer_params.get('grant_type', None)
+
+        self.skip_existing_file = self.alternative_document_service.get('skip_existing_file', False)
 
         base_url = self.alternative_document_service.get('base_url', None)
         s_key = self.alternative_document_service.get('select_key', None)
@@ -229,7 +235,7 @@ class S3Reader(BaseReader):
             raise Exception("Missing 'filter_values' items in 'alternative_document_service' parameters")
 
         if self.bearer_token is None:
-            self.bearer_token = get_bearer_token(url, client_id, client_secret, scope, grant_type)
+            self.bearer_token = get_bearer_token(self)
 
         temp_dir = self.download_dir
         skip_count = 0
@@ -245,9 +251,8 @@ class S3Reader(BaseReader):
             f_value = f_item_where.replace('min_filter_date', min_filter_date)
             complete_url = f"{base_url}?{s_key}={s_value}&{f_key}={f_value}&{o_key}={o_value}&{i_key}={i_value}&{c_key}={c_value}"
 
-            all_elements = []
             while complete_url is not None:
-                elements, next_url_href = get_json_response_from_url(complete_url, self.bearer_token, h_subscription_key, h_subscription_value)
+                elements, next_url_href = get_json_response_from_url(complete_url, self, h_subscription_key, h_subscription_value)
                 if elements is None or len(elements) == 0:
                     complete_url = None
                     continue
@@ -259,6 +264,7 @@ class S3Reader(BaseReader):
                     self.total_count += 1
 
                     doc_num = item.get('docnum', None)
+                    doc_name = item.get('docname', '')
                     file_type = item.get('filetype', 'None')
 
                     if file_type is not None and not self.is_supported_extension(file_type.lower()):
@@ -269,7 +275,20 @@ class S3Reader(BaseReader):
                     
                     filepath = f"{temp_dir}/{doc_num}"
                     original_key = f"{self.prefix}/{doc_num}" if self.prefix else doc_num
-                    self.s3.meta.client.download_file(self.bucket, original_key, filepath)
+
+                    if self.skip_existing_file:
+                        extension = file_type if file_type is not None else self.get_file_extension(doc_name)
+                        complete_file_path = f"{temp_dir}/{doc_num}.{extension}"
+                        if os.path.exists(complete_file_path):
+                            continue
+                    try:
+                        self.download_s3_file(doc_num, temp_dir, downloaded_files)
+                        doc_nums.append(doc_num)
+                    except Exception as e:
+                        self.error_count += 1
+                        self.error_dict[doc_num] = item
+                        logging.getLogger().error(f"Error downloading {original_key} '{doc_name}' {e}")
+                        continue
 
                     # add item to be processed later
                     self.element_ids.add(doc_num)
@@ -279,16 +298,24 @@ class S3Reader(BaseReader):
 
                 complete_url = f"{base_url}{next_url_href}" if next_url_href is not None else None
 
-            all_elements.extend(elements)
-
         self.skip_count = skip_count
         if self.verbose:
-            denodo_file = self.save_debug(self.element_dict, prefix='denodo')
+            _ = self.save_debug(self.element_dict, prefix='denodo')
 
         if self.process_files:
-            self.rename_files(temp_dir, self.excluded_exts, None, self.json_extension, self.prefix + '/', 'fileextension')
+            _ = self.rename_files(downloaded_files, temp_dir, self.excluded_exts, None, self.json_extension, self.prefix + '/', 'fileextension')
 
-        file_paths = [os.path.join(temp_dir, f) for f in os.listdir(temp_dir) if os.path.isfile(os.path.join(temp_dir, f)) and not f.endswith((self.json_extension, self.metadata_extension))]
+        if self.element_ids is not None and len(self.element_ids) > 0:
+            file_paths = []
+            for f in os.listdir(temp_dir):
+                full_path = os.path.join(temp_dir, f)
+                if os.path.isfile(full_path):
+                    file_name_without_ext = os.path.splitext(f)[0]
+                    if (not f.endswith((self.json_extension, self.metadata_extension)) and 
+                            file_name_without_ext in doc_nums):
+                        file_paths.append(full_path)
+        else:
+            file_paths = [os.path.join(temp_dir, f) for f in os.listdir(temp_dir) if os.path.isfile(os.path.join(temp_dir, f)) and not f.endswith((self.json_extension, self.metadata_extension))]
         return file_paths
 
 
@@ -302,6 +329,10 @@ class S3Reader(BaseReader):
             json.dump(serialized_docs, json_file, ensure_ascii=False, indent=4)
         return file_path
 
+    def get_file_extension(self, name) -> str:
+        '''get extension without the leading dot'''
+        return os.path.splitext(name)[1][1:]
+
     def get_files(self) -> list[str]:
         """Return a list of documents"""
         skip_count = 0
@@ -311,10 +342,10 @@ class S3Reader(BaseReader):
         if self.use_local_folder:
 
             if self.process_files:
-                self.rename_files(self.local_folder, self.excluded_exts, None, self.json_extension, self.prefix + '/', 'fileextension')
+                _ = self.rename_files(None, self.local_folder, self.excluded_exts, None, self.json_extension, self.prefix + '/', 'fileextension')
 
             for f in os.listdir(self.local_folder):
-                f_extension = os.path.splitext(f)[1][1:]  # get extension without the leading dot
+                f_extension = self.get_file_extension(f)
                 if self.excluded_exts is not None and f_extension in self.excluded_exts:
                     continue
                 if not os.path.isfile(os.path.join(self.local_folder, f)):
@@ -372,11 +403,10 @@ class S3Reader(BaseReader):
                     continue
 
                 try:
-                    # https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/s3/client/download_file.html#S3.Client.download_file
-                    self.s3.meta.client.download_file(self.bucket, original_key, filepath)
-                    file_paths.append(filepath)
-                    logging.getLogger().debug(f" {obj.key} to {temp_name}")
+                    self.download_s3_file(original_key, temp_dir, file_paths)
                 except Exception as e:
+                    self.error_count += 1
+                    self.error_dict[temp_name] = obj
                     if e.response['Error']['Code'] == '404':
                         logging.getLogger().error(f"The object '{obj.key}' does not exist.")
                     elif e.response['Error']['Code'] == '403':
@@ -388,19 +418,28 @@ class S3Reader(BaseReader):
         self.skip_count = skip_count
 
         if self.process_files:
-            self.rename_files(temp_dir, self.excluded_exts, None, self.json_extension, self.prefix + '/', 'fileextension')
+            renamed_files = self.rename_files(file_paths, temp_dir, self.excluded_exts, None, self.json_extension, self.prefix + '/', 'fileextension')
 
-        file_paths = [os.path.join(temp_dir, f) for f in os.listdir(temp_dir) if os.path.isfile(os.path.join(temp_dir, f)) and not f.endswith((self.json_extension, self.metadata_extension))]
+        if file_paths is None:
+            file_paths = [os.path.join(temp_dir, f) for f in os.listdir(temp_dir) if os.path.isfile(os.path.join(temp_dir, f)) and not f.endswith((self.json_extension, self.metadata_extension))]
+        else:
+            file_paths = renamed_files
         return file_paths
 
 
     def download_s3_file(self, key: str, temp_dir: str, file_paths: list):
         """Download a single file"""
+        # https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/s3/client/download_file.html#S3.Client.download_file
         filepath = f"{temp_dir}/{key}"
         original_key = f"{self.prefix}/{key}" if self.prefix else key
-        self.s3.meta.client.download_file(self.bucket, original_key, filepath)
-        file_paths.append(filepath)
-        logging.getLogger().debug(f" {original_key} to {key}")
+        try:
+            self.s3.meta.client.download_file(self.bucket, original_key, filepath)
+            file_paths.append(filepath)
+            logging.getLogger().debug(f" {original_key} to {key}")
+        except Exception as e:
+            self.error_count += 1
+            self.error_dict[key] = key
+            logging.getLogger().error(f"Error downloading {original_key} {e}")
 
     def is_supported_extension(self, suffix: str) -> bool:
         """Discard extension not listed in required_exts"""
@@ -440,26 +479,43 @@ class S3Reader(BaseReader):
 
     def rename_files(
             self,
+            file_list: List[str],
             folder_path: str,
             excluded_exts: str,
             main_extension: str,
             metadata_extension: str,
             key_prefix: str,
             extension_tag: str = 'fileextension'
-        ):
+        ) -> list[str]:
         '''Process all files in a folder, renaming them and adding metadata files'''
         if not os.path.exists(folder_path):
             logging.getLogger().warning(f"The folder '{folder_path}' does not exist.")
             return
 
-        # Get a list of all files in the folder
-        files = [f for f in os.listdir(folder_path) if os.path.isfile(os.path.join(folder_path, f))]
+        if file_list is None or len(file_list) == 0:
+            # Get a list of all files in the folder
+            files = [f for f in os.listdir(folder_path) if os.path.isfile(os.path.join(folder_path, f))]
+        else:
+            files = []
+            for file_item in file_list:
+                if os.path.isfile(file_item):
+                    if not file_item.endswith((self.json_extension, self.metadata_extension)):
+                        file_name = os.path.splitext(os.path.basename(file_item))[0]
+                        files.append(file_name)
 
         timestamp_tag = 'publishdate'
+
+        renamed_files = []
         # Process each file
         with concurrent.futures.ThreadPoolExecutor(max_workers=self.max_parallel_executions) as executor:
             futures = [executor.submit(self.rename_file, folder_path, excluded_exts, main_extension, metadata_extension, key_prefix, file_item, timestamp_tag, extension_tag) for file_item in files]
-            concurrent.futures.wait(futures)
+            for future in concurrent.futures.as_completed(futures):
+                try:
+                    file_path = future.result()
+                    renamed_files.append(file_path)
+                except Exception as exc:
+                    logging.getLogger().error(f"General exception: {exc}")
+        return renamed_files
 
 
     def rename_file(
@@ -472,9 +528,10 @@ class S3Reader(BaseReader):
             file_name_with_extension: str,
             timestamp_tag: str = 'publishdate',
             extension_tag: str = 'fileextension'
-        ):
+        ) -> str:
 
-        f_extension = os.path.splitext(file_name_with_extension)[1][1:]  # get extension without the leading dot
+        complete_path = ""
+        f_extension = self.get_file_extension(file_name_with_extension)
         if self.excluded_exts is not None and f_extension in self.excluded_exts:
             return
 
@@ -504,7 +561,7 @@ class S3Reader(BaseReader):
             s3_file = key_prefix + file_name
             initial_metadata = self.get_metadata(s3_file)
             if self.use_augment_metadata:
-                user_metadata = self.augment_metadata(initial_metadata, timestamp_tag)
+                user_metadata = self.augment_metadata(file_name, initial_metadata, timestamp_tag)
             extension_from_metadata = user_metadata.get(extension_tag, None)
             if user_metadata:
                 self.write_object_to_file(user_metadata, metadata_file_path)
@@ -527,13 +584,16 @@ class S3Reader(BaseReader):
                     if os.path.exists(new_path):
                         os.remove(new_path)
                     os.rename(file_path, new_path)
+                    complete_path = new_path
                 except Exception as e:
                     logging.getLogger().error(f"Error renaming file '{file_name}' using extension '{str_extension}' {e}")
-                    return
+                    return ""
+        return complete_path
 
 
     def augment_metadata(
             self,
+            document_name: str,
             input_metadata: dict,
             timestamp_tag: str = 'publishdate',
         ) -> dict:
@@ -587,6 +647,6 @@ class S3Reader(BaseReader):
 
             initial_metadata['description'] = description
         except Exception as e:
-            logging.getLogger().error(f"Error augmenting metadata for {id} {e}")
+            logging.getLogger().error(f"Error augmenting metadata for '{document_name}' from {initial_metadata} Error: {e}")
 
         return initial_metadata
