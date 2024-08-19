@@ -26,7 +26,7 @@ class RagApi:
         
         max_parallel_executions (Optional[str]): The maximum parallel execution allowed. Default 5
     """
-    def __init__(self, base_url, api_token, profile, max_parallel_executions):
+    def __init__(self, base_url, api_token, profile, max_parallel_executions:int=5):
         """
         Inits a Rag_api instance.
 
@@ -50,7 +50,7 @@ class RagApi:
         if profile and not self.is_valid_profile(profile):
             raise ValueError('Invalid value: profile')
         self.profile = profile
-        self.max_parallel_executions = max_parallel_executions
+        self.max_parallel_executions = max_parallel_executions if max_parallel_executions else 5
 
     def set_profile(self, profile_name):
         """
