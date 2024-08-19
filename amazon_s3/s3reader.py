@@ -355,6 +355,7 @@ class S3Reader(BaseReader):
                     continue
                 file_paths.append(os.path.join(self.local_folder, f))
 
+            self.total_count = len(file_paths)
             return file_paths
 
         temp_dir = self.download_dir
@@ -384,7 +385,6 @@ class S3Reader(BaseReader):
                 if is_dir or is_bad_ext:
                     continue
 
-                count += 1
                 temp_name = next(tempfile._get_candidate_names())
                 temp_name = obj.key.split("/")[-1]
 
@@ -404,6 +404,7 @@ class S3Reader(BaseReader):
                 if skip_file:
                     continue
 
+                count += 1
                 try:
                     self.download_s3_file(original_key, temp_dir, file_paths)
                 except Exception as e:
@@ -549,12 +550,12 @@ class S3Reader(BaseReader):
 
         get_metadata = False
         metadata_file_path = os.path.join(folder_path, metadata_file_name)
-        if not os.path.isfile(metadata_file_path):
+        if self.use_metadata_file and not os.path.isfile(metadata_file_path):
             # Get Metadata
             get_metadata = True
 
         rename_file = False
-        if file_extension == '':
+        if self.use_metadata_file and file_extension == '':
             get_metadata = True
             rename_file = True
 

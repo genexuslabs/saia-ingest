@@ -81,7 +81,10 @@ def save_to_file(lc_documents, prefix='module'):
     except Exception as e:
         logging.getLogger().error('save_to_file exception:', e)
 
-def ingest_jira(configuration: str) -> bool:
+def ingest_jira(
+        configuration: str,
+        timestamp: datetime = None,
+    ) -> bool:
     ret = True
     start_time = time.time()
     try:
@@ -109,7 +112,15 @@ def ingest_jira(configuration: str) -> bool:
         while keep_processing: 
             documents, total = reader.load_langchain_documents(query=query, startAt=startAt, maxResults=maxResults)
             maxResults = documents.__len__()
-            all_documents.extend(documents)
+            if timestamp is not None:
+                # Assume element order is DESC
+                filtered_documents = [doc for doc in documents if datetime.fromisoformat(doc.metadata.get('updated_at')).replace(tzinfo=timezone.utc) >= timestamp]
+                all_documents.extend(filtered_documents)
+                if len(filtered_documents) != len(documents):
+                    current_length = all_documents.__len__()
+                    break
+            else:
+                all_documents.extend(documents)
             current_length = all_documents.__len__()
             startAt += maxResults
             if current_length >= total:

@@ -48,7 +48,7 @@ def handle_ingest(
     elif type == "sharepoint":
         ret = ingest_sharepoint(config_file, start_time)
     elif type == "jira":
-        ret = ingest_jira(config_file)
+        ret = ingest_jira(config_file, timestamp=timestamp)
     elif type == "confluence":
         ret = ingest_confluence(config_file)
     elif type == "github":
