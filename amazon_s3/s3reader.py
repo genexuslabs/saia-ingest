@@ -18,6 +18,10 @@ from llama_index import download_loader
 from llama_index.readers.base import BaseReader
 from llama_index.readers.schema.base import Document
 
+from saia_ingest.vault.keyvault_client import KeyVaultClient
+
+logging.getLogger('botocore').setLevel(logging.WARNING)
+logging.getLogger('boto3').setLevel(logging.WARNING)
 
 class S3Reader(BaseReader):
     """General reader for any S3 file or directory."""
@@ -203,6 +207,31 @@ class S3Reader(BaseReader):
         self.bearer_client_secret = bearer_params.get('client_secret', None)
         self.bearer_scope = bearer_params.get('scope', None)
         self.bearer_grant_type = bearer_params.get('grant_type', None)
+
+        key_vault_params = self.alternative_document_service.get('key_vault', None)
+        if key_vault_params is not None:
+            key_vault_name = key_vault_params.get('name', None)
+            key_vault_access_key = key_vault_params.get('access_key', None)
+            key_vault_secret_key = key_vault_params.get('secret_key', None)
+            tenant_id = key_vault_params.get('tenant_id', None)
+
+            if key_vault_name is None:
+                raise Exception("Missing 'name' in 'alternative_document_service/key_vault' parameters")
+            if key_vault_access_key is None:
+                raise Exception("Missing 'access_key' in 'alternative_document_service/key_vault' parameters")
+            if key_vault_secret_key is None:
+                raise Exception("Missing 'secret_key' in 'alternative_document_service/key_vault' parameters")
+            if tenant_id is None:
+                raise Exception("Missing 'tenant_id' in 'alternative_document_service/key_vault' parameters")
+            
+            key_vault_client = KeyVaultClient(
+                vault_name=key_vault_name,
+                client_id=self.bearer_client_id,
+                client_secret=self.bearer_client_secret,
+                tenant_id=tenant_id
+            )
+            self.aws_access_id = key_vault_client.get_secret(key_vault_access_key)
+            self.aws_access_secret = key_vault_client.get_secret(key_vault_secret_key)
 
         self.skip_existing_file = self.alternative_document_service.get('skip_existing_file', False)
 
