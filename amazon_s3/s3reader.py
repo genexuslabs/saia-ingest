@@ -396,7 +396,7 @@ class S3Reader(BaseReader):
             self.download_s3_file(self.key, temp_dir, file_paths)
             count = 1
         elif self.keys:
-            logging.getLogger().info(f"keys: '{self.keys.length}'")
+            logging.getLogger().info(f"keys: '{len(self.keys)}'")
             for key in self.keys:
                 self.download_s3_file(key, temp_dir, file_paths)
             count = len(self.keys)

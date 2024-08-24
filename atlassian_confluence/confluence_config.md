@@ -13,7 +13,9 @@ confluence:
   include_attachments: !!bool true|false (default)
   include_children: !!bool true|false (default)
   cloud: !!bool true|false (default)
-  namespace: !!str 'namespace name' # Must match the associated RAG assistant, check the index section
+  download_dir: !!str path to a folder where metadata is stored (mandatory for delta ingestion)
+  split_strategy: !!str None | id (create a id.json for each page)
+  namespace: !!str 'namespace name' # Must match the associated RAG assistant, check the index section (deprecated)
 saia:
   base_url: !!str 'string' # GeneXus Enterprise AI Base URL
   api_token: !!str 'string'
