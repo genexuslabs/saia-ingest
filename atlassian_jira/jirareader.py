@@ -2,12 +2,7 @@ from datetime import datetime
 import re
 from typing import Any, Dict, List
 
-try:
-    from llama_index.readers.base import BaseReader
-except LookupError as e:
-    import nltk
-    nltk.download('wordnet')
-    from llama_index.readers.base import BaseReader
+from llama_index.readers.base import BaseReader
 from llama_index.readers.schema.base import Document
 from llama_index.bridge.langchain import Document as LCDocument
 
