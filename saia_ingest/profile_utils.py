@@ -79,7 +79,9 @@ def file_upload(
                 with open(file_path + '.saia.metadata', 'w') as file:
                     file.write(json.dumps(response_body, indent=2))
             end_time = time.time()
-            message_response = f"{response_body['indexStatus']}, {file_name},{response_body['name']},{response_body['id']},{end_time - start_time:.2f} seconds"
+            metadata_elements = response_body.get('metadata', [])
+            metadata_count_items = f",{len(metadata_elements)}" if len(metadata_elements) > 0 else ""
+            message_response = f"{response_body['indexStatus']}, {file_name},{response_body['name']},{response_body['id']}{metadata_count_items},{end_time - start_time:.2f} seconds"
         logging.getLogger().info(message_response)
     except Exception as e:
         if e.response['Error']['Code'] == '401':
