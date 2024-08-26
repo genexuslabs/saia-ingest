@@ -50,7 +50,7 @@ def handle_ingest(
     elif type == "jira":
         ret = ingest_jira(config_file, timestamp=timestamp)
     elif type == "confluence":
-        ret = ingest_confluence(config_file)
+        ret = ingest_confluence(config_file, timestamp=timestamp)
     elif type == "github":
         ret = ingest_github(config_file)
     elif type == "gdrive":
