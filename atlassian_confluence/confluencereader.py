@@ -2,7 +2,7 @@
 import logging
 import os
 import re
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Dict, List, Optional
 
 from llama_index.readers.base import BaseReader
@@ -178,7 +178,7 @@ class ConfluenceReader(BaseReader):
                     max_num_results=max_num_results,
                     space=space_key,
                     status=page_status,
-                    expand="body.storage.value",
+                    expand="body.storage.value,version",
                     content_type="page",
                 )
             )
@@ -187,7 +187,7 @@ class ConfluenceReader(BaseReader):
                 self._get_cql_data_with_paging(
                     cql=f'type="page" AND label="{label}"',
                     max_num_results=max_num_results,
-                    expand="body.storage.value",
+                    expand="body.storage.value,version",
                 )
             )
         elif cql:
@@ -195,7 +195,7 @@ class ConfluenceReader(BaseReader):
                 self._get_cql_data_with_paging(
                     cql=cql,
                     max_num_results=max_num_results,
-                    expand="body.storage.value",
+                    expand="body.storage.value,version",
                 )
             )
         elif page_ids:
@@ -219,17 +219,31 @@ class ConfluenceReader(BaseReader):
                     self._get_data_with_retry(
                         self.confluence.get_page_by_id,
                         page_id=page_id,
-                        expand="body.storage.value",
+                        expand="body.storage.value,expand",
                     )
                 )
 
         docs = []
         for page in pages:
+            if self.timestamp is not None and not self._is_greater_than_timestamp(page["id"], page["version"]["when"]):
+                continue
             doc = self.process_page(page, include_attachments, text_maker, space_key)
             if doc is not None:
                 docs.append(doc)
 
         return docs
+
+    def _is_greater_than_timestamp(self, id: str, date_string: str) -> bool:
+        ret = False
+        try:
+            last_modified_date = datetime.strptime(date_string, '%Y-%m-%dT%H:%M:%S.%fZ')
+            last_modified_date = last_modified_date.replace(tzinfo=timezone.utc)
+        except ValueError:
+            last_modified_date = datetime.strptime(date_string, '%Y-%m-%dT%H:%M:%S.%f%z')
+            logger.error(f"Could not parse date string {date_string} from {id}")
+        finally:
+            ret = last_modified_date > self.timestamp
+        return ret
 
     def _dfs_page_ids(self, page_id, max_num_results):
         ret = [page_id]
@@ -275,7 +289,7 @@ class ConfluenceReader(BaseReader):
         return ret
 
     def _get_cql_data_with_paging(
-        self, cql, max_num_results=50, expand="body.storage.value"
+        self, cql, max_num_results=50, expand="body.storage.value,expand"
     ):
         max_num_remaining = max_num_results
         ret = []

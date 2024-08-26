@@ -133,7 +133,6 @@ def operation_log_upload(
             }
         )
         response_body = response.json()
-        ret = response.ok
         if response.status_code != 200:
             logging.getLogger().info(f"{response.status_code}: {response.text} {response_body}")
             ret = False
