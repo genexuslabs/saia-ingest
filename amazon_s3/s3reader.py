@@ -268,7 +268,7 @@ class S3Reader(BaseReader):
 
         temp_dir = self.download_dir
         skip_count = 0
-        logging.getLogger().info(f"Downloading files from '{self.bucket}' to {temp_dir}")
+        logging.getLogger().info(f"Downloading files from '{self.bucket}' to {temp_dir} since {min_filter_date}")
 
         for f_item in f_values:
             f_item_name = f_item.get('name', None)
@@ -328,6 +328,8 @@ class S3Reader(BaseReader):
                 complete_url = f"{base_url}{next_url_href}" if next_url_href is not None else None
 
         self.skip_count = skip_count
+        if len(self.element_ids) <= 0:
+            return []
         if self.verbose:
             _ = self.save_debug(self.element_dict, prefix='denodo')
 
