@@ -38,7 +38,7 @@ def handle_ingest(
     start_time = time.time()
     config_file = config
 
-    if days is not None and days > 0:
+    if days is not None:
         timestamp = datetime.now(timezone.utc) - timedelta(days=days)
     elif timestamp is not None:
         timestamp = datetime.fromisoformat(timestamp).replace(tzinfo=timezone.utc)
