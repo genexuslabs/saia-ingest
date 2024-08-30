@@ -470,6 +470,7 @@ def ingest_s3(
         source_doc_id = s3_level.get('source_doc_id', None)
         download_dir = s3_level.get('download_dir', None)
         verbose = s3_level.get('verbose', False)
+        delete_downloaded_files = s3_level.get('delete_downloaded_files', False)
 
         # Saia
         saia_level = config.get('saia', {})
@@ -559,6 +560,13 @@ def ingest_s3(
             if delete_local_folder and len(file_paths) > 0:
                 file_path = os.path.dirname(file_paths[0])
                 shutil.rmtree(file_path)
+
+            if delete_downloaded_files and len(file_paths) > 0:
+                for file in file_paths:
+                    try:
+                        os.remove(file)
+                    except Exception as e:
+                        logging.getLogger().error(f"Error deleting file {file}: {e}")
 
             logging.getLogger().info(f"Success: {success_count} Skip: {loader.skip_count}")
             logging.getLogger().info(f"Upload Failed: {failed_count} Download Failed: {loader.error_count}")

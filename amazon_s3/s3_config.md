@@ -26,6 +26,8 @@ s3: # contact the provider for the following information
   excluded_exts: # list of excluded extensions, by default it is suggested to include the following: raw, metadata
     - !!str 'metadata'
     - !!str 'raw'
+  verbose: !!bool True|False (default) # Add more detail to logger? (use it for troubleshooting)
+  delete_downloaded_files: !!bool True|False (default) # Delete downloaded files
 saia:
   base_url: !!str 'string' # GeneXus Enterprise AI Base URL
   api_token: !!str 'string'
