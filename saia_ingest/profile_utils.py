@@ -3,9 +3,13 @@ import time
 from datetime import datetime, timezone
 import logging
 import requests
+import urllib3
 import json
 from .log import AccumulatingLogHandler
 from .config import DefaultHeaders
+
+# Suppress the InsecureRequestWarning
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 def is_valid_profile(
         base_url: str,
@@ -298,7 +302,11 @@ def get_json_response_from_url(
             h_subscription_key: h_subscription_value,
             'Content-Type': DefaultHeaders.JSON_CONTENT_TYPE
         }
-        response = requests.get(url, headers=headers)
+        response = requests.get(
+            url,
+            headers=headers,
+            verify=False # Disable SSL verification
+        )
         if response.status_code == 401:
             logging.getLogger().error(f"{response.status_code}: {response.text} - Getting new token and retrying...")
             loader.bearer_token = get_bearer_token(loader)
