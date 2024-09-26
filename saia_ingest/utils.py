@@ -4,6 +4,7 @@ import magic
 import logging
 import yaml
 import requests
+import chardet
 
 def get_yaml_config(yaml_file):
     # Load the configuration from the YAML file
@@ -47,13 +48,20 @@ def get_metadata_file(file_path, file_name, metadata_extension =  '.json') -> di
         ret = load_json_file(metadata_file)
     return ret
 
+def detect_encoding(file_path):
+    with open(file_path, 'rb') as file:
+        raw_data = file.read()
+        result = chardet.detect(raw_data)
+        return result['encoding']
+
 def load_json_file(file_path) -> dict:
     ret = None
+    encoding = detect_encoding(file_path)
     try:
-        with open(file_path, 'r', encoding='utf-8') as json_file:
+        with open(file_path, 'r', encoding=encoding) as json_file:
             ret = json.load(json_file)
     except Exception as e:
-        pass
+        logging.getLogger().error(f"Error reading json: {e}")
     return ret
 
 def search_failed_files(directory, failed_status):
@@ -69,7 +77,7 @@ def search_failed_files(directory, failed_status):
                             data['file_path'] = file_path 
                             file_list.append(data)
                     except json.JSONDecodeError:
-                        print(f"Error decoding JSON in file: {file_path}")
+                        logging.getLogger().error(f"Error decoding JSON in failed file: {file_path}")
     return file_list
 
 def find_value_by_key(metadata_list, key):
@@ -96,7 +104,7 @@ def search_fields_values(directory, fields_to_exclude = []):
                                 if not isinstance(data['fields'][key], list):
                                     dict_of_sets[key].append(data['fields'][key])
                     except json.JSONDecodeError:
-                        print(f"Error decoding JSON in file: {file_path}")
+                        logging.getLogger().error(f"Error decoding JSON in file: {file_path}")
     for key  in dict_of_sets:
         dict_of_sets[key] = list(set(dict_of_sets[key]))
     return dict_of_sets

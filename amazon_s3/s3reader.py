@@ -674,7 +674,7 @@ class S3Reader(BaseReader):
                     initial_metadata['url'] = doc_url
                 else:
                     # Update URL
-                    source_url = f"{self.source_base_url}?{self.source_doc_id}={id}"
+                    source_url = f"{self.source_base_url}?{self.source_doc_id}={id}&CONTDISP=INLINE"
                     initial_metadata['url'] = source_url
 
             description = f"{name} | {date_string_description} | {activity}"
