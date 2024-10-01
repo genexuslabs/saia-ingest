@@ -211,13 +211,13 @@ files = [
 
 [[package]]
 name = "atlassian-python-api"
-version = "3.41.11"
+version = "3.41.16"
 description = "Python Atlassian REST API Wrapper"
 optional = false
 python-versions = "*"
 files = [
-    {file = "atlassian-python-api-3.41.11.tar.gz", hash = "sha256:e6503b2bfeedf100fcabc1d541718a8ab5e6fd757164438fcf4948e6ecea12e4"},
-    {file = "atlassian_python_api-3.41.11-py3-none-any.whl", hash = "sha256:47ac76a171f08537cff64253d1b49a016dc6636dfbba324944c01397d755391c"},
+    {file = "atlassian_python_api-3.41.16-py3-none-any.whl", hash = "sha256:99e5587233a96d22c45a61b19523dd98e8266c620ba2d289f23e4ea35c9cf316"},
+    {file = "atlassian_python_api-3.41.16.tar.gz", hash = "sha256:dc0144ff8b8884562bb2af650586292524ad25f120cd21940df80f0d2ac64411"},
 ]
 
 [package.dependencies]
@@ -4629,4 +4629,4 @@ multidict = ">=4.0"
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.9,<3.12"
-content-hash = "d2f9c9109dad8837f08c5391ff3b622fb6a4636a433c58880d17e636a35b543b"
+content-hash = "1baf0c10747d091fff48dec2dc33c1c7e9e76aca4e05a549931693b7492e929f"
