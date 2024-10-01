@@ -73,7 +73,7 @@ pytz = "^2022.7.1"
 PyYAML = "^6.0"
 pyzmq = "^25.1.2"
 regex = "^2022.10.31"
-tiktoken = "^0.5.2"
+tiktoken = "^0.7.0"
 tokenizers = "^0.15.0"
 tqdm = "^4.66.3"
 python-magic = { version = "^0.4.27", platform = "linux"}
