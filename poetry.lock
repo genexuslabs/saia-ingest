@@ -385,12 +385,13 @@ crt = ["awscrt (==0.20.9)"]
 
 [[package]]
 name = "bs4"
-version = "0.0.1"
-description = "Dummy package for Beautiful Soup"
+version = "0.0.2"
+description = "Dummy package for Beautiful Soup (beautifulsoup4)"
 optional = false
 python-versions = "*"
 files = [
-    {file = "bs4-0.0.1.tar.gz", hash = "sha256:36ecea1fd7cc5c0c6e4a1ff075df26d50da647b75376626cc186e2212886dd3a"},
+    {file = "bs4-0.0.2-py2.py3-none-any.whl", hash = "sha256:abf8742c0805ef7f662dce4b51cca104cffe52b835238afc169142ab9b3fbccc"},
+    {file = "bs4-0.0.2.tar.gz", hash = "sha256:a48685c58f50fe127722417bae83fe6badf500d54b55f7e39ffe43b798653925"},
 ]
 
 [package.dependencies]
@@ -4629,4 +4630,4 @@ multidict = ">=4.0"
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.9,<3.12"
-content-hash = "d2f9c9109dad8837f08c5391ff3b622fb6a4636a433c58880d17e636a35b543b"
+content-hash = "8179d56b992938cc6263d567876cb1cbdf79e2d56cba7e8ae64a67470310c44f"
