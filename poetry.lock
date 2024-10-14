@@ -2125,18 +2125,18 @@ requests = ">=2,<3"
 
 [[package]]
 name = "llama-hub"
-version = "0.0.67"
+version = "0.0.79.post1"
 description = "A library of community-driven data loaders for LLMs. Use with LlamaIndex and/or LangChain. "
 optional = false
 python-versions = ">=3.8.1,<3.12"
 files = [
-    {file = "llama_hub-0.0.67-py3-none-any.whl", hash = "sha256:d879e9f419a164d117aa9b5c1c9b4d903da026a34bde4f2d1a64ba6b99810f95"},
-    {file = "llama_hub-0.0.67.tar.gz", hash = "sha256:3727723b98d3a75f8b9146ffb50d236e541c650c7e93626a8b482921326b37c6"},
+    {file = "llama_hub-0.0.79.post1-py3-none-any.whl", hash = "sha256:b4f9e6513ca5ee336256eb19a8b0d623bfc19fa5b82e864e12d092997ebc657a"},
+    {file = "llama_hub-0.0.79.post1.tar.gz", hash = "sha256:3dac59bbe87c4f8c1ac211c977c3265acd6c95b9460cfac9a9315f87dd449484"},
 ]
 
 [package.dependencies]
 html2text = "*"
-llama-index = ">=0.9.8"
+llama-index = ">=0.9.41"
 psutil = "*"
 pyaml = ">=23.9.7,<24.0.0"
 retrying = "*"
@@ -4647,4 +4647,4 @@ multidict = ">=4.0"
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.9,<3.12"
-content-hash = "b6546797ef2f28c2ca8c4d36fac15b14a1a63c964fe2fa19d916ee92cdc253b7"
+content-hash = "9931dc0d0edfde5d6533c1c26d4cbb5c3ed4fdbeb43bdb0c1981ca68c1d448d1"
