@@ -12,6 +12,7 @@ from langchain_openai import OpenAIEmbeddings
 from langchain_community.vectorstores import Pinecone
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 
+from saia_ingest.config import Defaults
 from saia_ingest.profile_utils import is_valid_profile, file_upload, file_delete, operation_log_upload, sync_failed_files, search_failed_to_delete
 from saia_ingest.rag_api import RagApi
 from saia_ingest.utils import get_yaml_config, get_metadata_file, load_json_file, search_failed_files, find_value_by_key
@@ -23,6 +24,7 @@ from amazon_s3.s3reader import S3Reader
 from gdrive.gdrive_reader import GoogleDriveReader
 
 from llama_hub.github_repo import GithubClient, GithubRepositoryReader
+from fs.simple_folder_reader import SimpleDirectoryReader
 
 from saia_ingest.config import DefaultVectorStore
 
@@ -131,7 +133,7 @@ def ingest_jira(
         lc_documents = all_documents
 
         if len(lc_documents) <= 0:
-            logging.getLogger().warn('No documents found')
+            logging.getLogger().warning('No documents found')
             return ret
 
         docs_file = save_to_file(lc_documents, prefix='jira')
@@ -634,7 +636,7 @@ def ingest_gdrive(
 
         doc_count = len(file_paths)
         if doc_count <= 0:
-            logging.getLogger().warn('No documents found')
+            logging.getLogger().warning('No documents found')
             return ret
 
         path = os.path.dirname(file_paths[0])
@@ -668,6 +670,88 @@ def ingest_gdrive(
         if delete_local_folder and len(file_paths) > 0:
             file_path = os.path.dirname(file_paths[0])
             shutil.rmtree(file_path)
+
+        if upload_operation_log:
+            end_time = time.time()
+            message_response = f"bulk ingest ({end_time - start_time:.2f}s)"
+            ret = operation_log_upload(saia_base_url, saia_api_token, saia_profile, "ALL", message_response, 0)
+
+        return ret
+
+    except Exception as e:
+        logging.getLogger().error(f"Error: {type(e)} {e}")
+        ret = False
+    finally:
+        return ret
+
+def ingest_file_system(
+        configuration: str,
+        timestamp: datetime = None,
+    ) -> bool:
+    ret = True
+    try:
+        start_time = time.time()
+
+        config = get_yaml_config(configuration)
+        fs_level = config.get('fs', {})
+        input_dir = fs_level.get('input_dir', None)
+        required_exts = fs_level.get('required_exts', None)
+        recursive = fs_level.get('recursive', False)
+        delete_local_folder = fs_level.get('delete_local_folder', False)
+        num_files_limit = fs_level.get('num_files_limit', None)
+        use_metadata_file = fs_level.get('use_metadata_file', False)
+
+        # https://docs.llamaindex.ai/en/stable/examples/data_connectors/simple_directory_reader/
+        loader = SimpleDirectoryReader(
+            input_dir=input_dir,
+            required_exts=required_exts,
+            recursive=recursive,
+            num_files_limit=num_files_limit,
+            timestamp=timestamp
+        )
+
+        doc_count = len(loader.input_files)
+        if doc_count <= 0:
+            logging.getLogger().warning('No documents found')
+            return ret
+
+        logging.getLogger().info(f"Found {doc_count} files in {input_dir}")
+
+        # Saia
+        saia_level = config.get('saia', {})
+        saia_base_url = saia_level.get('base_url', None)
+        saia_api_token = saia_level.get('api_token', None)
+        saia_profile = saia_level.get('profile', None)
+        max_parallel_executions = saia_level.get('max_parallel_executions', 5)
+        upload_operation_log = saia_level.get('upload_operation_log', False)
+
+        if saia_base_url is None:
+            logging.getLogger().error(f"Missing '{Defaults.PACKAGE_DESCRIPTION}' configuration")
+            logging.getLogger().error(f"Review configuration {Defaults.PACKAGE_URL}")
+            ret = False
+            return ret
+
+        ret = is_valid_profile(saia_base_url, saia_api_token, saia_profile)
+        if ret is False:
+            logging.getLogger().error(f"Invalid profile {saia_profile}")
+            ret = False
+            return ret
+
+        file_paths = os.path.dirname(loader.input_files[0])
+
+        ragApi = RagApi(saia_base_url, saia_api_token, saia_profile)
+        file_ids = [str(path) for path in loader.input_files]
+        saia_file_ids_to_delete = search_failed_to_delete(file_ids)
+        with concurrent.futures.ThreadPoolExecutor(max_workers=max_parallel_executions) as executor:
+            futures = [executor.submit(ragApi.delete_profile_document, id, saia_profile) for id in saia_file_ids_to_delete]
+        concurrent.futures.wait(futures)
+
+        with concurrent.futures.ThreadPoolExecutor(max_workers=max_parallel_executions) as executor:
+            futures = [executor.submit(saia_file_upload, saia_base_url, saia_api_token, saia_profile, file_item, use_metadata_file) for file_item in loader.input_files]
+            concurrent.futures.wait(futures)
+        
+        if delete_local_folder and doc_count > 0:
+            shutil.rmtree(file_paths)
 
         if upload_operation_log:
             end_time = time.time()
