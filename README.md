@@ -81,6 +81,7 @@ saia-cli ingest -c ./config/s3_sandbox.yaml --type test
 
 The configuration file details all parameters needed to run the ingestion, use the `--type` to decide the target ingestion; supported data sources are:
 
+ * `fs` (file system) [config](./fs/filesystem_config.md)
  * `s3` [config](./amazon_s3/s3_config.md)
  * `jira` [config](./atlassian_jira/jira_config.md)
  * `confluence` [config](./atlassian_confluence/confluence_config.md)
