@@ -5,6 +5,7 @@ import logging
 import yaml
 import requests
 import chardet
+from .config import Defaults
 
 def get_yaml_config(yaml_file):
     # Load the configuration from the YAML file
@@ -68,7 +69,7 @@ def search_failed_files(directory, failed_status):
     file_list = []
     for root, _, files in os.walk(directory):
         for file in files:
-            if file.endswith('.saia.metadata'):
+            if file.endswith(Defaults.PACKAGE_METADATA_POSTFIX):
                 file_path = os.path.join(root, file)
                 with open(file_path, 'r') as f:
                     try:

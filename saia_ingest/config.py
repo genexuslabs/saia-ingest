@@ -56,3 +56,4 @@ class DefaultLLM:
 class Defaults:
     PACKAGE_DESCRIPTION = "GeneXus Enterprise AI"
     PACKAGE_URL = "https://github.com/genexuslabs/saia-ingest/blob/main/README.md"
+    PACKAGE_METADATA_POSTFIX = ".saia.metadata"

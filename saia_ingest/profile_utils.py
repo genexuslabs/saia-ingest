@@ -6,7 +6,7 @@ import requests
 import urllib3
 import json
 from .log import AccumulatingLogHandler
-from .config import DefaultHeaders
+from .config import DefaultHeaders, Defaults
 
 # Suppress the InsecureRequestWarning
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
@@ -80,7 +80,7 @@ def file_upload(
             ret = False
         else:
             if save_answer:
-                with open(file_path + '.saia.metadata', 'w') as file:
+                with open(file_path + Defaults.PACKAGE_METADATA_POSTFIX, 'w') as file:
                     file.write(json.dumps(response_body, indent=2))
             end_time = time.time()
             metadata_elements = response_body.get('metadata', [])
@@ -333,7 +333,7 @@ def search_failed_to_delete(files: list[str]) -> list[str]:
     """Check if local metadata exists and return a list of Document ids to delete"""
     file_list = []
     for file in files:
-        item_file_metadata = f"{file}.saia.metadata"
+        item_file_metadata = f"{file}{Defaults.PACKAGE_METADATA_POSTFIX}"
         if os.path.exists(item_file_metadata):
             with open(item_file_metadata, 'r') as f:
                 try:
