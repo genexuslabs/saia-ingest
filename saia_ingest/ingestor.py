@@ -1,4 +1,5 @@
 import os
+from pathlib import Path
 import time
 from datetime import datetime, timezone
 import json
@@ -13,6 +14,7 @@ from langchain_community.vectorstores import Pinecone
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 
 from saia_ingest.config import Defaults
+from saia_ingest.file_utils import calculate_file_hash, load_hashes_from_json
 from saia_ingest.profile_utils import is_valid_profile, file_upload, file_delete, operation_log_upload, sync_failed_files, search_failed_to_delete
 from saia_ingest.rag_api import RagApi
 from saia_ingest.utils import get_yaml_config, get_metadata_file, load_json_file, search_failed_files, find_value_by_key
@@ -473,6 +475,7 @@ def ingest_s3(
         download_dir = s3_level.get('download_dir', None)
         verbose = s3_level.get('verbose', False)
         delete_downloaded_files = s3_level.get('delete_downloaded_files', False)
+        detect_file_duplication = s3_level.get('detect_file_duplication', False)
 
         # Saia
         saia_level = config.get('saia', {})
@@ -510,6 +513,7 @@ def ingest_s3(
             source_doc_id=source_doc_id,
             alternative_document_service=alternative_document_service,
             download_dir=download_dir,
+            detect_file_duplication=detect_file_duplication,
             verbose=verbose
             )
         loader.init_s3()
@@ -541,6 +545,17 @@ def ingest_s3(
                 file_paths = loader.get_files() if loader.alternative_document_service is None else loader.get_files_from_url()
 
                 saia_file_ids_to_delete = search_failed_to_delete(file_paths)
+                if detect_file_duplication and len(file_paths) > 0:
+                    hash_index = load_hashes_from_json(Path(download_dir))
+                    for new_file in file_paths:
+                        new_file_hash = calculate_file_hash(new_file)
+                        if new_file_hash in hash_index:
+                            document_id = hash_index[new_file_hash]
+                            file_name = os.path.basename(new_file)
+                            saia_file_ids_to_delete.append(hash_index[new_file_hash])
+                            file_paths.remove(new_file)
+                            logging.getLogger().warning(f"{file_name} duplicate discarded, using {document_id}")
+
                 with concurrent.futures.ThreadPoolExecutor(max_workers=max_parallel_executions) as executor:
                     futures = [executor.submit(ragApi.delete_profile_document, id, saia_profile) for id in saia_file_ids_to_delete]
                 concurrent.futures.wait(futures)

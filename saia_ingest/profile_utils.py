@@ -5,6 +5,8 @@ import logging
 import requests
 import urllib3
 import json
+
+from saia_ingest.file_utils import calculate_file_hash
 from .log import AccumulatingLogHandler
 from .config import DefaultHeaders, Defaults
 
@@ -80,6 +82,8 @@ def file_upload(
             ret = False
         else:
             if save_answer:
+                file_crc = calculate_file_hash(file_path)
+                response_body[Defaults.FILE_HASH] = file_crc
                 with open(file_path + Defaults.PACKAGE_METADATA_POSTFIX, 'w') as file:
                     file.write(json.dumps(response_body, indent=2))
             end_time = time.time()
