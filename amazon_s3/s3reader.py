@@ -11,8 +11,10 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Union
 from urllib.parse import quote, unquote
+from saia_ingest.config import Defaults
 from saia_ingest.utils import detect_file_extension
 from saia_ingest.profile_utils import is_valid_profile, file_upload, file_delete, operation_log_upload, sync_failed_files, get_bearer_token, get_json_response_from_url
+from saia_ingest.file_utils import calculate_file_hash
 
 from llama_index import download_loader
 from llama_index.readers.base import BaseReader
@@ -57,6 +59,7 @@ class S3Reader(BaseReader):
         source_base_url: Optional[str] = None,
         source_doc_id: Optional[str] = None,
         alternative_document_service: Optional[Dict[str, str]] = None,
+        detect_file_duplication: Optional[bool] = False,
         **kwargs: Any,
     ) -> None:
         """Initialize S3 bucket and key, along with credentials if needed.
@@ -118,6 +121,7 @@ class S3Reader(BaseReader):
         self.alternative_document_service = alternative_document_service
         self.source_base_url = source_base_url
         self.source_doc_id = source_doc_id
+        self.detect_file_duplication = detect_file_duplication
 
         self.s3 = None
         self.s3_client = None
@@ -595,7 +599,7 @@ class S3Reader(BaseReader):
             s3_file = key_prefix + file_name
             initial_metadata = self.get_metadata(s3_file)
             if self.use_augment_metadata:
-                user_metadata = self.augment_metadata(file_name, initial_metadata, timestamp_tag)
+                user_metadata = self.augment_metadata(folder_path, file_name, initial_metadata, timestamp_tag)
             extension_from_metadata = user_metadata.get(extension_tag, None)
             if user_metadata:
                 self.write_object_to_file(user_metadata, metadata_file_path)
@@ -627,6 +631,7 @@ class S3Reader(BaseReader):
 
     def augment_metadata(
             self,
+            folder_path: str,
             document_name: str,
             input_metadata: dict,
             timestamp_tag: str = 'publishdate',
@@ -668,6 +673,11 @@ class S3Reader(BaseReader):
                 # Add year
                 initial_metadata[timestamp_tag] = formatted_date
                 initial_metadata['year'] = year
+
+            if self.detect_file_duplication:
+                file_path = f"{folder_path}/{document_name}"
+                file_hash = calculate_file_hash(file_path)
+                initial_metadata[Defaults.FILE_HASH] = file_hash
 
             if self.source_base_url is not None and self.source_doc_id is not None:
                 if doc_url is not None:
