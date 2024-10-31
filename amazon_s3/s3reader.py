@@ -242,6 +242,7 @@ class S3Reader(BaseReader):
             )
             self.aws_access_id = key_vault_client.get_secret(key_vault_access_key)
             self.aws_access_secret = key_vault_client.get_secret(key_vault_secret_key)
+            self.init_s3(True)
 
         self.skip_existing_file = self.alternative_document_service.get('skip_existing_file', False)
 
