@@ -217,6 +217,8 @@ class S3Reader(BaseReader):
             key_vault_name = key_vault_params.get('name', None)
             key_vault_access_key = key_vault_params.get('access_key', None)
             key_vault_secret_key = key_vault_params.get('secret_key', None)
+            key_vault_client_id = key_vault_params.get('client_id', None)
+            key_vault_client_secret = key_vault_params.get('client_secret', None)
             tenant_id = key_vault_params.get('tenant_id', None)
 
             if key_vault_name is None:
@@ -225,13 +227,17 @@ class S3Reader(BaseReader):
                 raise Exception("Missing 'access_key' in 'alternative_document_service/key_vault' parameters")
             if key_vault_secret_key is None:
                 raise Exception("Missing 'secret_key' in 'alternative_document_service/key_vault' parameters")
+            if key_vault_client_id is None:
+                raise Exception("Missing 'client_id' in 'alternative_document_service/key_vault' parameters")
+            if key_vault_client_secret is None:
+                raise Exception("Missing 'client_secret' in 'alternative_document_service/key_vault' parameters")
             if tenant_id is None:
                 raise Exception("Missing 'tenant_id' in 'alternative_document_service/key_vault' parameters")
             
             key_vault_client = KeyVaultClient(
                 vault_name=key_vault_name,
-                client_id=self.bearer_client_id,
-                client_secret=self.bearer_client_secret,
+                client_id=key_vault_client_id,
+                client_secret=key_vault_client_secret,
                 tenant_id=tenant_id
             )
             self.aws_access_id = key_vault_client.get_secret(key_vault_access_key)
