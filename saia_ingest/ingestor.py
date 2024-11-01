@@ -547,14 +547,19 @@ def ingest_s3(
                 saia_file_ids_to_delete = search_failed_to_delete(file_paths)
                 if detect_file_duplication and len(file_paths) > 0:
                     hash_index = load_hashes_from_json(Path(download_dir))
-                    for new_file in file_paths:
+                    duplicate_ids = []
+                    for new_file in file_paths[:]:  # Iterate over a copy
                         new_file_hash = calculate_file_hash(new_file)
-                        if new_file_hash in hash_index:
+                        file_name_ext = os.path.basename(new_file)
+                        file_name, file_extension = os.path.splitext(file_name_ext)
+                        file_extension = file_extension.lstrip(".")
+                        if new_file_hash in hash_index and hash_index[new_file_hash] != file_name:
                             document_id = hash_index[new_file_hash]
-                            file_name = os.path.basename(new_file)
-                            saia_file_ids_to_delete.append(hash_index[new_file_hash])
+                            duplicate_ids.append(new_file)
                             file_paths.remove(new_file)
-                            logging.getLogger().warning(f"{file_name} duplicate discarded, using {document_id}")
+                            logging.getLogger().warning(f"{file_name} duplicate discarded, using {document_id}") 
+                    duplicate_ids_to_delete = search_failed_to_delete(duplicate_ids)
+                    saia_file_ids_to_delete.extend(duplicate_ids_to_delete)
 
                 with concurrent.futures.ThreadPoolExecutor(max_workers=max_parallel_executions) as executor:
                     futures = [executor.submit(ragApi.delete_profile_document, id, saia_profile) for id in saia_file_ids_to_delete]
@@ -715,6 +720,7 @@ def ingest_file_system(
         delete_local_folder = fs_level.get('delete_local_folder', False)
         num_files_limit = fs_level.get('num_files_limit', None)
         use_metadata_file = fs_level.get('use_metadata_file', False)
+        skip_empty_files = fs_level.get('skip_empty_files', True)
 
         # https://docs.llamaindex.ai/en/stable/examples/data_connectors/simple_directory_reader/
         loader = SimpleDirectoryReader(
@@ -722,6 +728,7 @@ def ingest_file_system(
             required_exts=required_exts,
             recursive=recursive,
             num_files_limit=num_files_limit,
+            skip_empty_files=skip_empty_files,
             timestamp=timestamp
         )
 
