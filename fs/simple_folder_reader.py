@@ -4,7 +4,7 @@ from timeit import repeat
 import warnings
 import fsspec
 from fsspec.implementations.local import LocalFileSystem
-import multiprocessing
+import logging
 from pathlib import Path, PurePosixPath
 from typing import Any, Callable, Dict, Generator, List, Optional, Set, Type, Union
 
@@ -36,6 +36,7 @@ class SimpleDirectoryReader():
         exclude: Optional[List] = None,
         exclude_hidden: bool = True,
         recursive: bool = False,
+        skip_empty_files: Optional[bool] = False,
         encoding: str = "utf-8",
         required_exts: Optional[List[str]] = None,
         num_files_limit: Optional[int] = None,
@@ -57,6 +58,7 @@ class SimpleDirectoryReader():
         self.required_exts = required_exts
         self.num_files_limit = num_files_limit
         self.timestamp = timestamp
+        self.skip_empty_files = skip_empty_files
 
         if input_dir:
             if not self.fs.isdir(input_dir):
@@ -127,6 +129,9 @@ class SimpleDirectoryReader():
             if self.timestamp is not None:
                 file_modified_time = datetime.fromtimestamp(ref.stat().st_mtime).replace(tzinfo=timezone.utc)
                 if file_modified_time < self.timestamp:
+                    continue
+                if self.skip_empty_files and ref.stat().st_size <= 0:
+                    logging.getLogger().warning(f"Skip empty file {ref.name}")
                     continue
             
             all_files.add(ref)

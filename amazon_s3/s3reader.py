@@ -7,6 +7,7 @@ import tempfile
 import boto3
 import json
 import concurrent.futures
+from collections import ChainMap
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Union
@@ -636,6 +637,13 @@ class S3Reader(BaseReader):
         return complete_path
 
 
+    def update_with_mapping(self, original_dict, mapping):
+        for old_key, new_value in mapping.items():
+            if old_key in original_dict:
+                original_dict[new_value] = original_dict.pop(old_key)  # Replace old key with new key
+        return original_dict
+
+
     def augment_metadata(
             self,
             folder_path: str,
@@ -649,27 +657,31 @@ class S3Reader(BaseReader):
         initial_metadata = {k: v for k, v in input_metadata.items() if v not in [None, 'null', '']}
         try:
             id = initial_metadata.get('documentid', '')
-            name = initial_metadata.get('filename', id)
-            activity = initial_metadata.get('disclosureactivity', '')
-            language = initial_metadata.get('documentlanguage', '')
             date_string = initial_metadata.get(timestamp_tag, '')
             date_string_description = date_string
             date_string_format = "%m/%d/%Y"
-            dept_id = None
             doc_url = None
 
+            merge_metadata_elements = self.alternative_document_service.get('merge_metadata', False)
             item_metadata_from_service = self.element_dict.get(id, None)
-            if item_metadata_from_service is not None:
-                initial_metadata['filename'] = item_metadata_from_service.get('docname', name)
-                initial_metadata['disclosureactivity'] = item_metadata_from_service.get('stagedesc', activity)
-                initial_metadata['documentlanguage'] = item_metadata_from_service.get('language', language)
-                date_string = item_metadata_from_service.get('approvaldate', date_string)
-                date_string_format = "%Y-%m-%dT%H:%M:%S"
-                dept_id = item_metadata_from_service.get('deptid', None)
-                doc_url = item_metadata_from_service.get('docurl', None)
 
-            if dept_id is not None:
-                initial_metadata['deptid'] = dept_id
+            if item_metadata_from_service is not None and merge_metadata_elements:
+                external_metadata = {k: v for k, v in item_metadata_from_service.items() if v not in [None, 'null', '']}
+                # Combine with preference to the first dictionary
+                initial_metadata = dict(ChainMap(initial_metadata, external_metadata))
+
+                mapping = {
+                    "docnum": "documentid",
+                    "docname": "filename",
+                    "stagedesc": "disclosureactivity",
+                    "language": "documentlanguage",
+                    "editors": "documentauthor",
+                    "approvaldate": timestamp_tag,
+                }
+                initial_metadata = self.update_with_mapping(initial_metadata, mapping)
+                date_string = initial_metadata.get(timestamp_tag, date_string)
+                date_string_format = "%Y-%m-%dT%H:%M:%S"
+                doc_url = initial_metadata.get('docurl', None)
 
             if date_string is not None:
                 # Change from MM/DD/YYYY to YYYYMMDD format
@@ -694,6 +706,8 @@ class S3Reader(BaseReader):
                     source_url = f"{self.source_base_url}?{self.source_doc_id}={id}&CONTDISP=INLINE"
                     initial_metadata['url'] = source_url
 
+            name = initial_metadata.get('filename', id)
+            activity = initial_metadata.get('disclosureactivity', '')
             description = f"{name} | {date_string_description} | {activity}"
 
             initial_metadata['description'] = description
