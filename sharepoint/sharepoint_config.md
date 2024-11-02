@@ -46,7 +46,7 @@ sharepoint: # contact the provider for the following information
     date_input_format: !!str '%Y-%m-%dT%H:%M:%SZ' # Date Input format
     date_output_format: !!str '%Y%m%d' # Date Output format
 saia:
-  base_url: !!str 'string' # GeneXus Enterprise AI Base URL
+  base_url: !!str 'string' # Globant Enterprise AI Base URL
   api_token: !!str 'string'
   profile: !!str 'string' # Must match the RAG assistant ID
   max_parallel_executions: !!int 5
