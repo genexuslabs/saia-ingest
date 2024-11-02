@@ -4,13 +4,13 @@ build-backend = "poetry.core.masonry.api"
 
 [tool.poetry]
 name = "saia-ingest"
-description = "GeneXus Enterprise AI Ingest utilities"
+description = "Globant Enterprise AI Ingest utilities"
 authors = ["Luciano Silveira <lsilveira@genexus.com>"]
 license = "MIT"
 #packages = [{include = "saia-ingest"}]
 readme = "README.md"
 repository = "https://www.github.com/genexuslabs/saia-ingest"
-version = "0.0.1"
+version = "0.0.2"
 
 [tool.poetry.scripts]
 saia-cli = 'saia_ingest.command_line.command_line:main'

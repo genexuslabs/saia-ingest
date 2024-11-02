@@ -1,5 +1,5 @@
 # Contributing
-This repository –whether a software project, design guide, or other, also called 'component’– can be used to interact with [GeneXus Enterprise AI](./EnterpriseAISuite.md).
+This repository –whether a software project, design guide, or other, also called 'component’– can be used to interact with [Globant Enterprise AI](./EnterpriseAISuite.md).
 
 It is [licensed under Apache 2.0](./LICENSE), so all contributions must comply with this licensing.
 
@@ -8,7 +8,7 @@ To be accepted, contributions must involve:
 1. An incident fix (either an error correction, code enhancement or new features),
 1. Improving the extensibility and/or
 1. Completeness of the component.
-Basically, contributions must not substantially change the existing functionality and must be useful for any of the [GeneXus Enterprise AI](./EnterpriseAISuite.md) components.
+Basically, contributions must not substantially change the existing functionality and must be useful for any of the [Globant Enterprise AI](./EnterpriseAISuite.md) components.
 
 Contributions are accepted in the `main` branch. There are other branches defined in the repositories but no contributions will be accepted in them.
 
@@ -23,7 +23,7 @@ If the incident has been reported and its correction is pending, keep the incide
 To make a good report, certain information must be included:
 - Description of the issue indicating the functionality that doesn’t achieve the expected performance.
 - Sample code showing the use case that doesn’t work as desired.
-- About running an application using the GeneXus Enterprise AI API, include the following:
+- About running an application using the Globant Enterprise AI API, include the following:
 - Instance, Organization, Project, Assistant or component involved;
 - Add the code snippet that can reproduce the case.
 

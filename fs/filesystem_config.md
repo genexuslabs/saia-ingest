@@ -11,7 +11,7 @@ fs:
   delete_local_folder: True|False (default)
   use_metadata_file: True|False (default)
 saia:
-  base_url: !!str 'string' # GeneXus Enterprise AI Base URL
+  base_url: !!str 'string' # Globant Enterprise AI Base URL
   api_token: !!str 'string'
   profile: !!str 'string' # Must match the RAG assistant ID
   max_parallel_executions: !!int 5

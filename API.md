@@ -1,8 +1,8 @@
 ## API
 
-If you need to interact with [GeneXus Enterprise AI](EnterpriseAISuite.md) APIs from python, this section is a good starting point.
+If you need to interact with [Globant Enterprise AI](EnterpriseAISuite.md) APIs from python, this section is a good starting point.
 
-The API definition is detailed [here](https://wiki.genexus.com/enterprise-ai/wiki?20,GeneXus+Enterprise+AI+API+Reference). To get access the minimal information needed are the variables:
+The API definition is detailed [here](https://wiki.genexus.com/enterprise-ai/wiki?20). To get access the minimal information needed are the variables:
 
  * $BASE_URL
  * $SAIA_APITOKEN

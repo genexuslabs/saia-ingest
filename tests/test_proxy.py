@@ -21,7 +21,7 @@ def config(configuration) -> dict:
 
 def test_proxy(config):
   '''
-  Sample GeneXus Enterprise AI Proxy testing
+  Sample Globant Enterprise AI Proxy testing
   https://wiki.genexus.com/enterprise-ai/wiki?19,GeneXus+Enterprise+AI+Proxy
   '''
 

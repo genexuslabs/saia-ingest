@@ -17,7 +17,7 @@ gdrive: # Mandatory
   credentials: !!str 'path_to_credentials.json'
   delete_local_folder: !!bool true|false (default) # To Delete folders after the upload process
 saia:
-  base_url: !!str 'string' # GeneXus Enterprise AI Base URL
+  base_url: !!str 'string' # Globant Enterprise AI Base URL
   api_token: !!str 'string'
   profile: !!str 'string' # Must match the RAG assistant ID
   max_parallel_executions: !!int 5
@@ -45,4 +45,4 @@ INFO:root:Successfully gdrive ingestion 'timestamp' config: ./config/gdrive_sand
 
 ### Implementation
 
-Check the [implementation](../saia_ingest/ingestor.py#432), it [downloads the files](../gdrive/gdrive_reader.py) to a temporary folder and then uses the [GeneXus Enterprise AI](../EnterpriseAISuite.md) FileUpload API.
+Check the [implementation](../saia_ingest/ingestor.py#432), it [downloads the files](../gdrive/gdrive_reader.py) to a temporary folder and then uses the [Globant Enterprise AI](../EnterpriseAISuite.md) FileUpload API.

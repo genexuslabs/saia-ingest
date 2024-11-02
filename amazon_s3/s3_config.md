@@ -30,7 +30,7 @@ s3: # contact the provider for the following information
   verbose: !!bool True|False (default) # Add more detail to logger? (use it for troubleshooting)
   delete_downloaded_files: !!bool True|False (default) # Delete downloaded files
 saia:
-  base_url: !!str 'string' # GeneXus Enterprise AI Base URL
+  base_url: !!str 'string' # Globant Enterprise AI Base URL
   api_token: !!str 'string'
   profile: !!str 'string' # Must match the RAG assistant ID
   max_parallel_executions: !!int 5

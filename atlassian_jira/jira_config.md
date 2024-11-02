@@ -11,7 +11,7 @@ jira:
   query: !!str 'filter=id' # Create a filter for the issues and check the associated ID
   namespace: !!str 'namespace name' # Must match the associated RAG assistant, check the index section
 saia:
-  base_url: !!str 'string' # GeneXus Enterprise AI Base URL
+  base_url: !!str 'string' # Globant Enterprise AI Base URL
   api_token: !!str 'string'
   profile: !!str 'string' # Must match the RAG assistant ID
   max_parallel_executions: !!int 5

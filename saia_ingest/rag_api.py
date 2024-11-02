@@ -19,7 +19,7 @@ class RagApi:
     by the following api (https://wiki.genexus.com/enterprise-ai/wiki?29)
 
     Args:
-        base_url (str):     The base URL for your GeneXus Enterprise AI installation
+        base_url (str):     The base URL for your Globant Enterprise AI installation
         api_token (str):    Token provided by the environment that allow the communication with the API.
                             Please check: https://wiki.genexus.com/enterprise-ai/wiki?20
         profile (str):      A specific RAG assistant name.
