@@ -63,7 +63,7 @@ def handle_ingest(
 
     if ret:
         formatted_timestamp = timestamp.strftime("%Y-%m-%d %H:%M") if timestamp is not None else "no timestamp"
-        logging.getLogger().info(f"Successfully {type} ingestion '{formatted_timestamp}' config: {config_file}")
+        logging.getLogger().info(f"{type} ingestion '{formatted_timestamp}' config: {config_file}")
     
     file_handler.close()
 
