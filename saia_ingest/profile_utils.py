@@ -328,7 +328,8 @@ def get_json_response_from_url(
                 break
 
     except Exception as e:
-        logging.getLogger().error(f"Error elements {e}")
+        logging.getLogger().info(f"URL: {url}")
+        logging.getLogger().error(f"Error getting elements {e}")
     finally:
         return (new_list, next_url_href)
 

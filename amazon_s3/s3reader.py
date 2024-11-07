@@ -319,7 +319,6 @@ class S3Reader(BaseReader):
                         logging.getLogger().debug(f"{doc_num} with '{file_type}' extension discarded")
                         continue
                     
-                    filepath = f"{temp_dir}/{doc_num}"
                     original_key = f"{self.prefix}/{doc_num}" if self.prefix else doc_num
 
                     if self.skip_existing_file:
@@ -435,10 +434,6 @@ class S3Reader(BaseReader):
 
                 temp_name = next(tempfile._get_candidate_names())
                 temp_name = obj.key.split("/")[-1]
-
-                filepath = (
-                    f"{temp_dir}/{temp_name}"
-                )
 
                 if not os.path.exists(temp_dir):
                     os.makedirs(temp_dir)
@@ -675,15 +670,9 @@ class S3Reader(BaseReader):
                 # Combine with preference to the first dictionary
                 initial_metadata = dict(ChainMap(initial_metadata, external_metadata))
 
-                mapping = {
-                    "docnum": "documentid",
-                    "docname": "filename",
-                    "stagedesc": "disclosureactivity",
-                    "language": "documentlanguage",
-                    "editors": "documentauthor",
-                    "approvaldate": timestamp_tag,
-                }
-                initial_metadata = self.update_with_mapping(initial_metadata, mapping)
+                mapping = self.alternative_document_service.get('metadata_mappings', {})
+                if mapping:
+                    initial_metadata = self.update_with_mapping(initial_metadata, mapping)
                 date_string = initial_metadata.get(timestamp_tag, date_string)
                 date_string_format = "%Y-%m-%dT%H:%M:%S"
                 doc_url = initial_metadata.get('docurl', None)
