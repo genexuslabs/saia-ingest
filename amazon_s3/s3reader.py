@@ -290,7 +290,12 @@ class S3Reader(BaseReader):
                 continue
             # Update datetime filter
             f_value = f_item_where.replace('min_filter_date', min_filter_date)
-            complete_url = f"{base_url}?{s_key}={s_value}&{f_key}={f_value}&{o_key}={o_value}&{i_key}={i_value}&{c_key}={c_value}"
+            s_key_value = f"{s_key}={s_value}&" if s_value is not None else ""
+            f_key_value = f"{f_key}={f_value}&" if f_value is not None else ""
+            o_key_value = f"{o_key}={o_value}&" if o_value is not None else ""
+            i_key_value = f"{i_key}={i_value}&" if i_value is not None else ""
+            c_key_value = f"{c_key}={c_value}&" if c_value is not None else ""
+            complete_url = f"{base_url}?{s_key_value}{f_key_value}{o_key_value}{i_key_value}{c_key_value}"
 
             while complete_url is not None:
                 elements, next_url_href = get_json_response_from_url(complete_url, self, h_subscription_key, h_subscription_value)
