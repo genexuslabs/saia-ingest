@@ -316,7 +316,7 @@ class S3Reader(BaseReader):
                     if file_type is not None and not self.is_supported_extension(file_type.lower()):
                         skip_count += 1
                         self.skip_dict[doc_num] = item
-                        logging.getLogger().debug(f"{doc_num} with '{file_type}' extension discarded")
+                        logging.getLogger().warning(f"{doc_num} '{doc_name}' with '{file_type}' extension discarded")
                         continue
                     
                     original_key = f"{self.prefix}/{doc_num}" if self.prefix else doc_num
