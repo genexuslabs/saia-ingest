@@ -34,6 +34,8 @@ from typing import List, Dict
 import logging
 import shutil
 
+from sharepoint.sharepoint_ingestor import Sharepoint_Ingestor
+
 
 verbose = False
 

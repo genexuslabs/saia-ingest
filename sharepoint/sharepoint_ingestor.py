@@ -49,9 +49,9 @@ class Sharepoint_Ingestor:
     
     def _get_rag_api(self):
         return RagApi(
-                    self.saia_configuration.get('url',""),
+                    self.saia_configuration.get('base_url',""),
                     self.saia_configuration.get('api_token',""), 
-                    self.saia_configuration.get('profile_name',""), 
+                    self.saia_configuration.get('profile',""), 
                     self.saia_configuration.get('max_parallel_executions',5)
                     )
     
@@ -144,7 +144,7 @@ class Sharepoint_Ingestor:
                 item = self.reader.get_next_item()
             
     def process_file_items(self):
-        profile_name = self.saia_configuration.get('profile_name',"")
+        profile_name = self.saia_configuration.get('profile',"")
         
         logging.getLogger().info(f"Uploading files to { profile_name }")
         
