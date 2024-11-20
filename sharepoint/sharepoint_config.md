@@ -46,7 +46,7 @@ sharepoint:
         - field2
     map_fields: # (Optional) How mapping should be done
       - name: 'SampleFieldId'
-        new_values: C:/tmp/config/SampleFieldId.yaml # place here the mapping needed, useful for changing IDs to descriptions
+        new_values: C:/tmp/config/SampleFieldId.yaml # place here the mapping needed, useful for changing IDs to descriptions, check a sample on the lookup section
         default_value: '' # If no mapping set use this value
     rename: # (Optional) fields to be renamed
       - old_name: field1 # current field name
@@ -73,6 +73,24 @@ saia:
 ```
 
 The parameters `client_id`, `client_secret` and `tenant_id` are those of the registered app in Microsoft Azure Portal.
+
+### Lookup
+
+The expected `yaml` file format for lookups (referenced as `SampleFieldId.yaml` from the previous configuration) is as follow:
+
+```yml
+id1: 'description 1'
+id2: 'description 2'
+id3: 'description 3'
+```
+
+For example:
+
+```yml
+'1': 'Item #1'
+'2': 'Two'
+'3': 'My sample 3'
+```
 
 ### Execution
 
