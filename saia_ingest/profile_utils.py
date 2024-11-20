@@ -189,7 +189,7 @@ def sync_failed_files(
         reprocess_status_detail_list_contains: list = [],
         reprocess_failed_files_exclude: list = [],
         timestamp: datetime = None
-    ) -> (list[str], list[str]):
+    ) -> (list[str], list[str]): # type: ignore
     ret = True
     to_delete = []
     to_insert = []
@@ -304,6 +304,7 @@ def get_json_response_from_url(
         headers = {
             'Authorization': f'Bearer {loader.bearer_token}',
             h_subscription_key: h_subscription_value,
+            'User-Agent': DefaultHeaders.AGENT,
             'Content-Type': DefaultHeaders.JSON_CONTENT_TYPE
         }
         response = requests.get(

@@ -4,8 +4,10 @@ Maintain custom header naming convention using kebab-case format.
 
 
 class DefaultHeaders:
+    AGENT = 'geai'
     AUTHORIZATION = 'Authorization'
     JSON_CONTENT_TYPE = 'application/json'
+    JSON_CONTENT_TYPE_UTF8 = 'application/json; charset=utf-8'
     SOURCE = 'X-Saia-Source'
     REQUEST_ID = 'X-Saia-Req-Id'
     PARENT_REQUEST_ID = 'X-Saia-Parent-Req-Id'
