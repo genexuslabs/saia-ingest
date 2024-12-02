@@ -74,7 +74,7 @@ PyYAML = "^6.0"
 pyzmq = "^26.2.0"
 regex = "^2022.10.31"
 tiktoken = "^0.7.0"
-tokenizers = "^0.15.0"
+tokenizers = "^0.21.0"
 tqdm = "^4.66.3"
 python-magic = { version = "^0.4.27", platform = "linux"}
 python-magic-bin = {version = "^0.4.14", platform = "win32"}
