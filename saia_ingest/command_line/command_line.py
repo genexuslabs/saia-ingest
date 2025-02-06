@@ -4,12 +4,14 @@ import time
 from typing import Any, Optional
 from datetime import datetime, timezone, timedelta
 import logging
+import sys
 from logging.handlers import RotatingFileHandler
 
 from ..ingestor import ingest_s3, ingest_jira, ingest_confluence, ingest_github, ingest_gdrive, ingest_sharepoint, ingest_file_system
 from ..log import AccumulatingLogHandler
 
 logging.basicConfig(level=logging.INFO)
+sys.stdout.reconfigure(encoding='utf-8')
 timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
 log_file_name = f"debug/run_{timestamp}.txt"
 log_dir = os.path.dirname(log_file_name)

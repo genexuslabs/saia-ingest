@@ -240,7 +240,7 @@ class RagApi:
         name = profile_name or self.profile
         url = f"{self.base_url}/v1/search/profile/{name}/document"
         headers = {
-            "filename": os.path.basename(file_path),
+            "filename": os.path.basename(file_path).encode('utf-8'),
             "Content-Type": content_type
         }
         headers.update(self.base_header)

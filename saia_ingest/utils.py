@@ -1,5 +1,7 @@
 import os
 import json
+from pathlib import Path
+from typing import List
 import magic
 import logging
 import yaml
@@ -40,9 +42,35 @@ def change_file_extension(file_path, new_extension):
     new_file_path = base_path + new_extension
     return new_file_path
 
-def get_metadata_file(file_path, file_name, metadata_extension =  '.json') -> dict:
+def get_subfolder_metadata(file_path, base_folder_names, father_name, sibiling_name):
+    metadata = None
+    path_parts = file_path.split(os.sep)
+    
+    # Find the index of the base_folder_name folder
+    for base_folder_name in base_folder_names:
+        if base_folder_name in path_parts:
+            base_index = path_parts.index(base_folder_name)        
+            metadata_folder1 = path_parts[base_index]
+            next_folder = path_parts[base_index + 1] if base_index + 1 < len(path_parts) else None
+            
+            metadata = {
+                father_name: metadata_folder1,
+                sibiling_name: next_folder
+            }
+            return metadata
+
+    return metadata
+
+def get_metadata_file(file_path, file_name, metadata_extension='.json', metadata_mappings:dict=None) -> dict:
     # Get the metadata file content
     ret = None
+    if len(metadata_mappings) == 2:
+        folders, keys = list(metadata_mappings.values())[:2]
+        if len(folders) > 0 and len(keys) >= 2:
+            ret = get_subfolder_metadata(file_path, folders, keys[0], keys[1])
+            if ret:
+                return ret
+
     new_file_name = change_file_extension(file_name, metadata_extension)
     metadata_file = os.path.join(file_path, new_file_name)
     if os.path.isfile(metadata_file):
@@ -136,3 +164,16 @@ def do_get(token, endpoint):
 
 def get_authorization_header(token):
     return {"Authorization": f"Bearer {token}"}
+
+def get_new_files(paths:List[Path]):
+
+    out_paths = []
+    for item in paths:
+
+        file = os.path.normpath(item)
+
+        item_file_metadata = f"{file}{Defaults.PACKAGE_METADATA_POSTFIX}"
+        if not os.path.exists(item_file_metadata):
+            out_paths.append(item)
+
+    return out_paths
