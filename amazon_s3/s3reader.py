@@ -14,7 +14,7 @@ from typing import Any, Callable, Dict, List, Optional, Union
 from urllib.parse import quote, unquote
 from saia_ingest.config import Defaults
 from saia_ingest.utils import detect_file_extension
-from saia_ingest.profile_utils import is_valid_profile, file_upload, file_delete, operation_log_upload, sync_failed_files, get_bearer_token, get_json_response_from_url
+from saia_ingest.profile_utils import get_bearer_token, get_json_response_from_url
 from saia_ingest.file_utils import calculate_file_hash
 
 from llama_index import download_loader
