@@ -1,7 +1,9 @@
 import os
+from pathlib import Path
 import time
 from datetime import datetime, timezone
 import logging
+from typing import List
 import requests
 import urllib3
 import json
@@ -52,26 +54,28 @@ def file_upload(
         file_path: str,
         file_name: str = None,
         metadata_file: dict = None,
-        save_answer = False
+        save_answer = False,
+        optional_args: dict = None,
     ) -> bool:
     ret = True
+    response_body = ""
     try:
         url = f"{base_url}/v1/search/profile/{profile}/document"
         start_time = time.time()
         with open(file_path, "rb") as file:
             file_name = file.name.split("/")[-1] if file_name is None else file_name
             files = {"file": (file_name, file, "application/octet-stream")}
-            data = None
+            data = optional_args
             if metadata_file is not None:
                 metadata_json_str = json.dumps(metadata_file)
-                data = {u"metadata": metadata_json_str} 
+                data = {u"metadata": metadata_json_str, **optional_args} 
             response = requests.post(
                 url,
                 files=files,
                 data=data,
                 headers={
                     'Authorization': f'Bearer {api_token}',
-                    'filename': file_name
+                    'filename': file_name.encode('utf-8')
                 }
             )
         response_body = response.json()
@@ -84,7 +88,8 @@ def file_upload(
             if save_answer:
                 file_crc = calculate_file_hash(file_path)
                 response_body[Defaults.FILE_HASH] = file_crc
-                with open(file_path + Defaults.PACKAGE_METADATA_POSTFIX, 'w') as file:
+                file_metadata_path = file_path + Defaults.PACKAGE_METADATA_POSTFIX
+                with open(file_metadata_path, 'w', encoding='utf-8') as file:
                     file.write(json.dumps(response_body, indent=2))
             end_time = time.time()
             metadata_elements = response_body.get('metadata', [])
@@ -184,6 +189,7 @@ def file_delete(
 
 def sync_failed_files(
         docs: list,
+        file_list: List[Path],
         local_folder: str,
         reprocess_valid_status_list: list = [],
         reprocess_status_detail_list_contains: list = [],
@@ -224,7 +230,14 @@ def sync_failed_files(
 
                 to_delete.append(id)
                 name_with_extension = f"{name}.{extension}"
-                to_insert.append(os.path.join(local_folder, name_with_extension))
+                if file_list is None:
+                    base_local_folder = local_folder
+                else:
+                    base_local_folder = next((p for p in file_list if normalize(p.name) == normalize(name_with_extension)), None)
+                    if base_local_folder is None:
+                        base_local_folder = local_folder
+                        logging.getLogger().warning(f"Could not find {name_with_extension}")
+                to_insert.append(os.path.join(base_local_folder, name_with_extension))
 
     except Exception as e:
         logging.getLogger().error(f"Error sync_failed_files: {e}")
@@ -232,6 +245,10 @@ def sync_failed_files(
     finally:
         logging.getLogger().info(f"To Delete: {len(to_delete)}: To Insert: {len(to_insert)}")
         return (to_delete, to_insert)
+
+# Normalize by removing spaces
+def normalize(name: str) -> str:
+    return name.replace(" ", "")
 
 def get_documents(
         base_url: str,
