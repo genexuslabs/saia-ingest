@@ -17,7 +17,7 @@ from saia_ingest.config import Defaults
 from saia_ingest.file_utils import calculate_file_hash, load_hashes_from_json
 from saia_ingest.profile_utils import is_valid_profile, file_upload, file_delete, operation_log_upload, sync_failed_files, search_failed_to_delete
 from saia_ingest.rag_api import RagApi
-from saia_ingest.utils import get_yaml_config, get_metadata_file, load_json_file, search_failed_files, find_value_by_key
+from saia_ingest.utils import get_new_files, get_yaml_config, get_metadata_file, load_json_file
 
 # tweaked the implementation locally
 from atlassian_jira.jirareader import JiraReader
@@ -268,6 +268,7 @@ def ingest_confluence(
         saia_profile = saia_level.get('profile', None)
         upload_operation_log = saia_level.get('upload_operation_log', False)
         max_parallel_executions = saia_level.get('max_parallel_executions', 5)
+        optional_args = saia_level.get('ingestion', {})
     
         if saia_base_url is not None:
 
@@ -287,7 +288,7 @@ def ingest_confluence(
 
                 doc_count = 0
                 for doc_id_path in ids:
-                    ret = saia_file_upload(saia_base_url, saia_api_token, saia_profile, doc_id_path, False)
+                    ret = saia_file_upload(saia_base_url, saia_api_token, saia_profile, doc_id_path, False, '.json', None, optional_args)
                     if not ret:
                         message_response += f"Error uploading document {doc_id_path} {ret}\n"
                     else:
@@ -427,7 +428,9 @@ def saia_file_upload(
         saia_profile: str,
         file_item: str,
         use_metadata_file: bool = False,
-        metadata_extension: str = '.json'
+        metadata_extension: str = '.json',
+        metadata_args: dict = None,
+        optional_args: dict = None,
     ) -> bool:
     ret = True
 
@@ -435,8 +438,8 @@ def saia_file_upload(
     file_path = os.path.dirname(file)
     file_name = os.path.basename(file)
 
-    metadata_file = get_metadata_file(file_path, file_name, metadata_extension) if use_metadata_file else None
-    ret = file_upload(saia_base_url, saia_api_token, saia_profile, file, file_name, metadata_file, True)
+    metadata_file = get_metadata_file(file_path, file_name, metadata_extension, metadata_args) if use_metadata_file else None
+    ret = file_upload(saia_base_url, saia_api_token, saia_profile, file, file_name, metadata_file, True, optional_args)
     return ret
 
 def ingest_s3(
@@ -466,6 +469,7 @@ def ingest_s3(
         local_folder = s3_level.get('local_folder', None)
         use_metadata_file = s3_level.get('use_metadata_file', False)
         use_augment_metadata = s3_level.get('use_augment_metadata', False)
+        metadata_args = s3_level.get('metadata_mappings', {})
         delete_local_folder = s3_level.get('delete_local_folder', False)
         process_files = s3_level.get('process_files', False)
         reprocess_failed_files = s3_level.get('reprocess_failed_files', False)
@@ -485,6 +489,7 @@ def ingest_s3(
         saia_api_token = saia_level.get('api_token', None)
         saia_profile = saia_level.get('profile', None)
         max_parallel_executions = saia_level.get('max_parallel_executions', 5)
+        optional_args = saia_level.get('ingestion', {})
 
         if saia_base_url is not None:
             ret = is_valid_profile(saia_base_url, saia_api_token, saia_profile)
@@ -539,7 +544,7 @@ def ingest_s3(
                 min_filter_date = alternative_document_service.get('min_filter_date', None)
                 if min_filter_date is not None:
                     t_timestamp = datetime.fromisoformat(min_filter_date).replace(tzinfo=timezone.utc)
-                to_delete, file_paths = sync_failed_files(docs['documents'], local_folder, reprocess_valid_status_list, reprocess_status_detail_list_contains, reprocess_failed_files_exclude, t_timestamp)
+                to_delete, file_paths = sync_failed_files(docs['documents'], None, local_folder, reprocess_valid_status_list, reprocess_status_detail_list_contains, reprocess_failed_files_exclude, t_timestamp)
                 with concurrent.futures.ThreadPoolExecutor(max_workers=max_parallel_executions) as executor:
                     futures = [executor.submit(file_delete, saia_base_url, saia_api_token, saia_profile, d) for d in to_delete]
                     concurrent.futures.wait(futures)
@@ -570,7 +575,7 @@ def ingest_s3(
             file_path = None
 
             with concurrent.futures.ThreadPoolExecutor(max_workers=max_parallel_executions) as executor:
-                futures = [executor.submit(saia_file_upload, saia_base_url, saia_api_token, saia_profile, file_item, use_metadata_file) for file_item in file_paths]
+                futures = [executor.submit(saia_file_upload, saia_base_url, saia_api_token, saia_profile, file_item, use_metadata_file, '.json', metadata_args, optional_args) for file_item in file_paths]
                 for future in concurrent.futures.as_completed(futures):
                     try:
                         result = future.result()
@@ -652,6 +657,7 @@ def ingest_gdrive(
         mime_types = gdrive_level.get('mime_types', None)
         cred = gdrive_level.get('credentials', None)
         delete_local_folder = gdrive_level.get('delete_local_folder', False)
+        metadata_args = gdrive_level.get('metadata_mappings', {})
 
         loader = GoogleDriveReader(credentials_path=cred)
         file_paths = loader.get_files(folder_id=folder_id, mime_types=mime_types)
@@ -671,6 +677,7 @@ def ingest_gdrive(
         saia_profile = saia_level.get('profile', None)
         max_parallel_executions = saia_level.get('max_parallel_executions', 5)
         upload_operation_log = saia_level.get('upload_operation_log', False)
+        optional_args = saia_level.get('ingestion', {})
 
         if saia_base_url is None:
             logging.getLogger().error(f"Missing '{Defaults.PACKAGE_DESCRIPTION}' configuration")
@@ -686,7 +693,7 @@ def ingest_gdrive(
             return ret
 
         with concurrent.futures.ThreadPoolExecutor(max_workers=max_parallel_executions) as executor:
-            futures = [executor.submit(saia_file_upload, saia_base_url, saia_api_token, saia_profile, file_item, use_metadata_file) for file_item in file_paths]
+            futures = [executor.submit(saia_file_upload, saia_base_url, saia_api_token, saia_profile, file_item, use_metadata_file, '.json', metadata_args, optional_args) for file_item in file_paths]
             concurrent.futures.wait(futures)
         
         if delete_local_folder and len(file_paths) > 0:
@@ -723,6 +730,11 @@ def ingest_file_system(
         num_files_limit = fs_level.get('num_files_limit', None)
         use_metadata_file = fs_level.get('use_metadata_file', False)
         skip_empty_files = fs_level.get('skip_empty_files', True)
+        metadata_args = fs_level.get('metadata_mappings', {})
+        only_process_new_files = fs_level.get('new_files_only', False)
+        reprocess_failed_files = fs_level.get('reprocess_failed_files', False)
+        reprocess_valid_status_list = fs_level.get('reprocess_valid_status_list', [])
+        reprocess_status_detail_list_contains = fs_level.get('reprocess_status_detail_list_contains', [])
 
         # https://docs.llamaindex.ai/en/stable/examples/data_connectors/simple_directory_reader/
         loader = SimpleDirectoryReader(
@@ -734,7 +746,9 @@ def ingest_file_system(
             timestamp=timestamp
         )
 
-        doc_count = len(loader.input_files)
+        file_list = loader.input_files
+
+        doc_count = len(file_list)
         if doc_count <= 0:
             logging.getLogger().warning('No documents found')
             return ret
@@ -748,6 +762,7 @@ def ingest_file_system(
         saia_profile = saia_level.get('profile', None)
         max_parallel_executions = saia_level.get('max_parallel_executions', 5)
         upload_operation_log = saia_level.get('upload_operation_log', False)
+        optional_args = saia_level.get('ingestion', {})
 
         if saia_base_url is None:
             logging.getLogger().error(f"Missing '{Defaults.PACKAGE_DESCRIPTION}' configuration")
@@ -761,17 +776,44 @@ def ingest_file_system(
             ret = False
             return ret
 
-        file_paths = os.path.dirname(loader.input_files[0])
+        file_paths = os.path.dirname(file_list[0])
 
         ragApi = RagApi(saia_base_url, saia_api_token, saia_profile)
-        file_ids = [str(path) for path in loader.input_files]
-        saia_file_ids_to_delete = search_failed_to_delete(file_ids)
-        with concurrent.futures.ThreadPoolExecutor(max_workers=max_parallel_executions) as executor:
-            futures = [executor.submit(ragApi.delete_profile_document, id, saia_profile) for id in saia_file_ids_to_delete]
-        concurrent.futures.wait(futures)
 
+        if only_process_new_files:
+            docs = ragApi.get_profile_documents(saia_profile, skip=0, count=999999)
+            file_list = get_new_files(docs, file_list)
+            doc_count = len(file_list)
+            logging.getLogger().info(f"Filter new files {doc_count}")
+
+        if reprocess_failed_files:
+            # Clean files with failed state, re upload
+            file_reference = fs_level.get('reprocess_failed_files_reference', None)
+            if file_reference is not None and os.path.exists(file_reference):
+                local_file = file_reference
+                docs = load_json_file(local_file)
+            else:
+                docs = ragApi.get_profile_documents(saia_profile, skip=0, count=999999)
+
+            reprocess_failed_files_exclude = fs_level.get('reprocess_failed_files_exclude', [])
+            t_timestamp = timestamp
+            to_delete, file_paths = sync_failed_files(docs['documents'], file_list, file_paths, reprocess_valid_status_list, reprocess_status_detail_list_contains, reprocess_failed_files_exclude, t_timestamp)
+            with concurrent.futures.ThreadPoolExecutor(max_workers=max_parallel_executions) as executor:
+                futures = [executor.submit(file_delete, saia_base_url, saia_api_token, saia_profile, d) for d in to_delete]
+                concurrent.futures.wait(futures)
+
+            files_to_process = file_list ## calculate
+        else:
+            files_to_process = file_list
+            file_ids = [str(path) for path in file_list]
+            saia_file_ids_to_delete = search_failed_to_delete(file_ids)
+            with concurrent.futures.ThreadPoolExecutor(max_workers=max_parallel_executions) as executor:
+                futures = [executor.submit(ragApi.delete_profile_document, id, saia_profile) for id in saia_file_ids_to_delete]
+            concurrent.futures.wait(futures)
+
+        files_to_process = file_list
         with concurrent.futures.ThreadPoolExecutor(max_workers=max_parallel_executions) as executor:
-            futures = [executor.submit(saia_file_upload, saia_base_url, saia_api_token, saia_profile, file_item, use_metadata_file) for file_item in loader.input_files]
+            futures = [executor.submit(saia_file_upload, saia_base_url, saia_api_token, saia_profile, file_item, use_metadata_file, '.json', metadata_args, optional_args) for file_item in files_to_process]
             concurrent.futures.wait(futures)
         
         if delete_local_folder and doc_count > 0:
