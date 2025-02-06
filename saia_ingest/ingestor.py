@@ -553,7 +553,7 @@ def ingest_s3(
 
                 saia_file_ids_to_delete = search_failed_to_delete(file_paths)
                 if detect_file_duplication and len(file_paths) > 0:
-                    hash_index = load_hashes_from_json(Path(download_dir))
+                    hash_index = load_hashes_from_json(Path(download_dir), loader.metadata_key_element)
                     duplicate_ids = []
                     for new_file in file_paths[:]:  # Iterate over a copy
                         new_file_hash = calculate_file_hash(new_file)
