@@ -124,7 +124,7 @@ class S3Reader(BaseReader):
         self.source_base_url = source_base_url
         self.source_doc_id = source_doc_id
         self.detect_file_duplication = detect_file_duplication
-        self.skip_storage_download = skip_storage_download or True # FIXME
+        self.skip_storage_download = skip_storage_download
         self.headers = {
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
         }
@@ -226,6 +226,7 @@ class S3Reader(BaseReader):
         self.extension_tag = self.alternative_document_service.get('extension_tag', 'fileextension')
         self.metadata_key_element = self.alternative_document_service.get('metadata_key_element', 'documentid')
         self.description_template = self.alternative_document_service.get('description_template', None)
+        self.skip_storage_download = self.alternative_document_service.get('skip_storage_download', False)
 
         key_vault_params = self.alternative_document_service.get('key_vault', None)
         if key_vault_params is not None:
@@ -354,7 +355,6 @@ class S3Reader(BaseReader):
                             if response.status_code == 200:
                                 filename = f"{doc_num}.{file_type}"
                                 complete_file_path = f"{temp_dir}/{filename}"
-                                #complete_file_path = f"{temp_dir}/{doc_num}"
                                 content = response.content
                                 with open(complete_file_path, 'wb') as file:
                                     file.write(content)
