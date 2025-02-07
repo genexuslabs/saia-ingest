@@ -31,6 +31,7 @@ jobs:
         pip install poetry
         poetry self add setuptools
         poetry install
+        poetry run pip install setuptools
     - name: pytest
       run: |
         poetry run pytest -p no:warnings --tb=line
