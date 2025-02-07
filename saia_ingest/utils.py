@@ -144,17 +144,18 @@ def get_configuration(configuration_object, name):
         raise ValueError(name.capitalize() + 'configuration missing. Please check your config file.')
     return specific_configuration
 
-def do_get(token, endpoint):
+def do_get(token, endpoint, headers:dict={}):
         """
-        Do a get to the scepified endpoint.
+        Do a get to the specified endpoint.
 
         Raises:
             Exception: If status code is not 200 or value is not in the response json fields.
         """
         
+        headers = get_authorization_header(token, headers)
         response = requests.get(
             url=endpoint,
-            headers=get_authorization_header(token),
+            headers=headers,
         )
         
         if response.status_code != 200:
@@ -162,8 +163,11 @@ def do_get(token, endpoint):
         
         return response
 
-def get_authorization_header(token):
-    return {"Authorization": f"Bearer {token}"}
+def get_authorization_header(token, headers:dict={}):
+    complete_headers = headers
+    if token:
+        headers["Authorization"] = f"Bearer {token}"
+    return complete_headers
 
 def get_new_files(paths:List[Path]):
 
@@ -177,3 +181,36 @@ def get_new_files(paths:List[Path]):
             out_paths.append(item)
 
     return out_paths
+
+from datetime import datetime
+
+def parse_date(date_string):
+    if date_string is None:
+        return None, None, None, None  # Handle the case where no date is provided
+
+    date_string = date_string.replace("-", "/")  # Normalize separators
+    
+    # Define possible date formats
+    date_formats = [
+        "%m/%d/%Y",  # MM/DD/YYYY
+        "%Y/%m/%d",  # YYYY/MM/DD
+        "%d/%m/%Y",  # DD/MM/YYYY
+        "%Y-%m-%d",  # ISO format (in case hyphens remain)
+        "%d-%m-%Y"   # European format with hyphens
+    ]
+
+    for fmt in date_formats:
+        try:
+            # Change any formato to YYYYMMDD format
+            date_object = datetime.strptime(date_string, fmt)
+
+            formatted_date = date_object.strftime("%Y%m%d")
+            day = date_object.strftime("%d")
+            month = date_object.strftime("%m")
+            year = date_object.strftime("%Y")
+
+            return formatted_date, day, month, year
+        except ValueError:
+            continue  # Try the next format
+
+    raise ValueError(f"Date format not recognized: {date_string}")

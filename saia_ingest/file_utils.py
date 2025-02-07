@@ -32,7 +32,7 @@ def are_files_identical(file1: Path, file2: Path) -> bool:
         return False
 
 
-def load_hashes_from_json(folder: Path) -> Dict[str, Any]:
+def load_hashes_from_json(folder: Path, id:str='documentid') -> Dict[str, Any]:
     """Load all existing hashes from JSON files in the folder."""
     hash_index = {}
     duplicate_count = 0
@@ -42,7 +42,7 @@ def load_hashes_from_json(folder: Path) -> Dict[str, Any]:
                 data = json.load(f)
                 if Defaults.FILE_HASH in data:
                     file_hash = data[Defaults.FILE_HASH]
-                    document_id = data["documentid"]
+                    document_id = data[id]
                     if file_hash in hash_index:
                         duplicate_count += 1
                         logging.getLogger().warning(f"{document_id} duplicate detected: using {hash_index[file_hash]}")
@@ -50,7 +50,8 @@ def load_hashes_from_json(folder: Path) -> Dict[str, Any]:
                         hash_index[file_hash] = document_id
         except (json.JSONDecodeError, FileNotFoundError) as e:
             print(f"Error reading {json_file}: {e}")
-    logging.getLogger().warning(f"{duplicate_count} duplicates found")
+    if duplicate_count > 0:
+        logging.getLogger().warning(f"{duplicate_count} duplicates found")
     return hash_index
 
 
@@ -66,6 +67,5 @@ def check_for_duplicates(new_file: Path, folder: Path) -> bool:
         print(f"Duplicate found! {new_file} matches {hash_index[new_file_hash]}")
         return True
     else:
-        print(f"No duplicates found for {new_file}.")
         return False
 
