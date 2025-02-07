@@ -130,6 +130,8 @@ class S3Reader(BaseReader):
         }
         self.metadata_key_element = None
         self.description_template = None
+        self.timestamp_tag = 'publishdate'
+        self.extension_tag = 'fileextension'
 
         self.s3 = None
         self.s3_client = None
@@ -378,8 +380,8 @@ class S3Reader(BaseReader):
                             continue
                     else:
                         try:
-                            prefix = self.prefix + '/'
-                            self.download_s3_file(doc_num, temp_dir, downloaded_files)
+                            prefix = f"{self.prefix}/{doc_num}" if self.prefix else doc_num
+                            self.download_s3_file(prefix, temp_dir, downloaded_files)
                             doc_nums.append(doc_num)
                         except Exception as e:
                             self.error_count += 1
@@ -450,7 +452,7 @@ class S3Reader(BaseReader):
         if self.use_local_folder:
 
             if self.process_files:
-                _ = self.rename_files(None, self.local_folder, self.excluded_exts, None, self.json_extension, self.prefix + '/', 'fileextension')
+                _ = self.rename_files(None, self.local_folder, self.excluded_exts, None, self.json_extension, self.prefix + '/')
 
             for f in os.listdir(self.local_folder):
                 f_extension = self.get_file_extension(f)
@@ -525,7 +527,7 @@ class S3Reader(BaseReader):
         self.skip_count = skip_count
 
         if self.process_files:
-            renamed_files = self.rename_files(file_paths, temp_dir, self.excluded_exts, None, self.json_extension, self.prefix + '/', 'fileextension')
+            renamed_files = self.rename_files(file_paths, temp_dir, self.excluded_exts, None, self.json_extension, self.prefix + '/')
 
         if file_paths is None:
             file_paths = [os.path.join(temp_dir, f) for f in os.listdir(temp_dir) if os.path.isfile(os.path.join(temp_dir, f)) and not f.endswith((self.json_extension, self.metadata_extension))]
@@ -538,7 +540,9 @@ class S3Reader(BaseReader):
         """Download a single file"""
         # https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/s3/client/download_file.html#S3.Client.download_file
         filepath = f"{temp_dir}/{key}"
-        original_key = f"{self.prefix}/{key}" if self.prefix else key
+        folder_path = os.path.dirname(filepath)
+        os.makedirs(folder_path, exist_ok=True)
+        original_key = key
         try:
             self.s3.meta.client.download_file(self.bucket, original_key, filepath)
             file_paths.append(filepath)
