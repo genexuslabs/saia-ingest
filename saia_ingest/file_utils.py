@@ -38,7 +38,7 @@ def load_hashes_from_json(folder: Path, id:str='documentid') -> Dict[str, Any]:
     duplicate_count = 0
     for json_file in folder.glob("*.json"):
         try:
-            with json_file.open('r') as f:
+            with json_file.open('r', encoding='utf-8') as f:
                 data = json.load(f)
                 if Defaults.FILE_HASH in data:
                     file_hash = data[Defaults.FILE_HASH]

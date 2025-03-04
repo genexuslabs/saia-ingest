@@ -244,9 +244,13 @@ class RagApi:
             "Content-Type": content_type
         }
         headers.update(self.base_header)
-        with open(file_path, 'rb') as file:
-            response = self._do_request(POST_METHOD, url, headers=headers, data=file)
-        return response.json()    
+        try:
+            with open(file_path, 'rb') as file:
+                response = self._do_request(POST_METHOD, url, headers=headers, data=file)
+            return response.json()    
+        except Exception as e:
+            logging.getLogger().info(f"Invalid upload {file_path} {e}")
+            raise e
     
     def _is_valid_json(self, my_json):
         try:

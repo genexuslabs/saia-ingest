@@ -7,7 +7,7 @@ import tempfile
 import boto3
 import json
 import concurrent.futures
-from collections import ChainMap
+from collections import ChainMap, defaultdict
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Union
@@ -201,7 +201,7 @@ class S3Reader(BaseReader):
 
     def write_object_to_file(self, data, file_path):
         try:
-            with open(file_path, 'w') as file: # encoding='utf-8-sig'
+            with open(file_path, 'w', encoding='utf8') as file:
                 json.dump(data, file, indent=2, ensure_ascii=False)
         except Exception as e:
             logging.getLogger().error(f"Error writing to {file_path}: {e}")
@@ -339,9 +339,26 @@ class S3Reader(BaseReader):
                     original_key = f"{self.prefix}/{doc_num}" if self.prefix else doc_num
 
                     if self.skip_existing_file:
+                        doc_num = item.get('document_id', None)
+                        url = item.get('url', None)
+                        if url is None:
+                            logging.getLogger().error(f"{doc_num} invalid url")
+                            continue
+                        filename_with_extension = os.path.basename(url)
+                        doc_name, file_extension = os.path.splitext(filename_with_extension)
+                        file_extension = file_extension.lstrip(".")
+                        file_type = self.get_file_extension(filename_with_extension)
                         extension = file_type if file_type is not None else self.get_file_extension(doc_name)
                         complete_file_path = f"{temp_dir}/{doc_num}.{extension}"
                         if os.path.exists(complete_file_path):
+                            self.element_ids.add(doc_num)
+                            doc_nums.append(doc_num)
+                            self.element_dict[doc_num] = item
+                            continue
+                        if not self.is_supported_extension(file_type.lower()):
+                            skip_count += 1
+                            self.skip_dict[doc_num] = item
+                            logging.getLogger().warning(f"{doc_num} '{doc_name}' with '{file_type}' extension discarded")
                             continue
 
                     if self.skip_storage_download:
@@ -376,7 +393,7 @@ class S3Reader(BaseReader):
                                 logging.getLogger().error(f"Failed to download file. Status code: {response.status_code}")
                                 continue
                         except Exception as e:
-                            logging.getLogger().error(f"Error downloading {doc_num} '{doc_name}' {e}")
+                            logging.getLogger().error(f"Error downloading {url} doc:'{doc_num}' name:'{doc_name}' error: {e}")
                             continue
                     else:
                         try:
@@ -430,14 +447,17 @@ class S3Reader(BaseReader):
         return {k: v for k, v in initial.items() if k in metadata_whitelist}
 
     def save_debug(self, serialized_docs: any, prefix:str) -> str:
-        debug_folder = os.path.join(os.getcwd(), 'debug')
-        now = datetime.now()
-        formatted_timestamp = now.strftime("%Y%m%d%H%M%S")
-        filename = '%s_%s.json' % (prefix, formatted_timestamp)
-        file_path = os.path.join(debug_folder, filename)
-        with open(file_path, 'w', encoding='utf8') as json_file:
-            json.dump(serialized_docs, json_file, ensure_ascii=False, indent=4)
-        return file_path
+        try:
+            debug_folder = os.path.join(os.getcwd(), 'debug')
+            now = datetime.now()
+            formatted_timestamp = now.strftime("%Y%m%d%H%M%S")
+            filename = '%s_%s.json' % (prefix, formatted_timestamp)
+            file_path = os.path.join(debug_folder, filename)
+            with open(file_path, 'w', encoding='utf8') as json_file:
+                json.dump(serialized_docs, json_file, ensure_ascii=False, indent=4)
+            return file_path
+        except Exception as e:
+            logging.getLogger().error(f"Error saving debug file: {e}")
 
     def get_file_extension(self, name) -> str:
         '''get extension without the leading dot'''
@@ -763,6 +783,14 @@ class S3Reader(BaseReader):
                     source_url = f"{self.source_base_url}?{self.source_doc_id}={id}&CONTDISP=INLINE"
                     initial_metadata['url'] = source_url
 
+            url = initial_metadata.get('url', None)
+            if url:
+                replacements = self.alternative_document_service.get('url_replacements', {})
+                for replacement in replacements:
+                    old_str = replacement['search']
+                    new_str = replacement['replace']
+                    if old_str in url:
+                        url = url.replace(old_str, new_str)
             self.generate_description(initial_metadata, date_string_description, id)
         except Exception as e:
             logging.getLogger().error(f"Error augmenting metadata for '{document_name}' from {initial_metadata} Error: {e}")
@@ -770,9 +798,9 @@ class S3Reader(BaseReader):
         return initial_metadata
 
     def generate_description(self, initial_metadata, date_string_description, id:any):
-
+        default_values = defaultdict(lambda: "", initial_metadata)
         if not self.description_template is None:
-            description = self.description_template.format(**initial_metadata)
+            description = self.description_template.format(**default_values)
         else:
             name = initial_metadata.get('filename', id)
             activity = initial_metadata.get('disclosureactivity', '')

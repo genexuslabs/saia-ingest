@@ -4,6 +4,7 @@ import time
 from datetime import datetime, timezone
 import json
 import concurrent.futures
+import traceback
 
 #from llama_index import QueryBundle
 #from llama_index.retrievers import BaseRetriever
@@ -636,7 +637,8 @@ def ingest_s3(
             ret = ingest(documents, openapi_key, index_name, namespace, embeddings_model)
 
     except Exception as e:
-        logging.getLogger().error(f"Error: {e}")
+        logging.getLogger().error(f"Ingest Error: {e}")
+        traceback.print_exc()
         ret = False
     finally:
         end_time = time.time()
