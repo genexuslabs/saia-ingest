@@ -695,7 +695,10 @@ class S3Reader(BaseReader):
 
         if get_metadata:
             # Get metadata and rename it
-            s3_file = key_prefix + file_name
+            if self.download_using_prefix is False:
+                s3_file = key_prefix
+            else:
+                s3_file = key_prefix + file_name
             initial_metadata = self.get_metadata(s3_file)
             if self.use_augment_metadata:
                 user_metadata = self.augment_metadata(folder_path, file_name, initial_metadata, timestamp_tag)
