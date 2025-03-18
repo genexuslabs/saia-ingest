@@ -62,6 +62,7 @@ class S3Reader(BaseReader):
         alternative_document_service: Optional[Dict[str, str]] = None,
         detect_file_duplication: Optional[bool] = False,
         skip_storage_download: Optional[bool] = False,
+        download_using_prefix: Optional[bool] = False,
         **kwargs: Any,
     ) -> None:
         """Initialize S3 bucket and key, along with credentials if needed.
@@ -138,6 +139,7 @@ class S3Reader(BaseReader):
 
         self.verbose = verbose
         self.download_dir = download_dir if download_dir else tempfile.mkdtemp()
+        self.download_using_prefix = download_using_prefix
         if not os.path.exists(self.download_dir):
             os.makedirs(self.download_dir)
         
@@ -558,15 +560,20 @@ class S3Reader(BaseReader):
         return file_paths
 
 
-    def download_s3_file(self, key: str, temp_dir: str, file_paths: list):
+    def download_s3_file(self, prefix_key: str, temp_dir: str, file_paths: list):
         """Download a single file"""
         # https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/s3/client/download_file.html#S3.Client.download_file
+        key = prefix_key
+        original_key = key
+        bucket = self.bucket
+        if self.prefix and self.download_using_prefix is False:
+            key = key.replace(f"{self.prefix}/", "")
         filepath = f"{temp_dir}/{key}"
         folder_path = os.path.dirname(filepath)
         os.makedirs(folder_path, exist_ok=True)
-        original_key = key
+
         try:
-            self.s3.meta.client.download_file(self.bucket, original_key, filepath)
+            self.s3.meta.client.download_file(bucket, original_key, filepath)
             file_paths.append(filepath)
             logging.getLogger().debug(f" {original_key} to {key}")
         except Exception as e:
