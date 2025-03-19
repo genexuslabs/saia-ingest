@@ -75,6 +75,8 @@ saia-cli ingest -c ./config/s3_sandbox.yaml
 saia-cli ingest -c ./config/s3_sandbox.yaml -t 2023-12-21
 # using a type
 saia-cli ingest -c ./config/s3_sandbox.yaml --type test
+# using a type and the last 7 days
+saia-cli ingest -c ./config/s3_sandbox.yaml --type test --days 7
 ```
 
 ### Data Sources
