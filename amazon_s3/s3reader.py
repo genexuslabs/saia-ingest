@@ -697,6 +697,10 @@ class S3Reader(BaseReader):
             # Get metadata and rename it
             if self.download_using_prefix is False:
                 s3_file = key_prefix
+                if "/" in key_prefix:
+                    # Substitute the last part of the key_prefix with the file name
+                    file_from_pattern = key_prefix.rsplit('/', 1)[1]
+                    s3_file = key_prefix.replace(file_from_pattern, file_name)
             else:
                 s3_file = key_prefix + file_name
             initial_metadata = self.get_metadata(s3_file)
