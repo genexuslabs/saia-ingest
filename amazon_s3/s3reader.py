@@ -333,6 +333,8 @@ class S3Reader(BaseReader):
                     doc_num = item.get('docnum', None)
                     doc_name = item.get('docname', '')
                     file_type = item.get('filetype', 'None')
+                    if file_type is None:
+                        file_type = self.get_file_extension(doc_name)
 
                     if not self.skip_storage_download and file_type is not None and not self.is_supported_extension(file_type.lower()):
                         skip_count += 1
