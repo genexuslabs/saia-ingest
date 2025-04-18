@@ -522,6 +522,7 @@ def ingest_s3(
             alternative_document_service=alternative_document_service,
             download_dir=download_dir,
             detect_file_duplication=detect_file_duplication,
+            reprocess_valid_status_list=reprocess_valid_status_list,
             verbose=verbose
             )
         loader.init_s3()

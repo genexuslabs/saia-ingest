@@ -63,6 +63,7 @@ class S3Reader(BaseReader):
         detect_file_duplication: Optional[bool] = False,
         skip_storage_download: Optional[bool] = False,
         download_using_prefix: Optional[bool] = False,
+        reprocess_valid_status_list: Optional[List[str]] = None,
         **kwargs: Any,
     ) -> None:
         """Initialize S3 bucket and key, along with credentials if needed.
@@ -142,6 +143,7 @@ class S3Reader(BaseReader):
         self.download_using_prefix = download_using_prefix
         if not os.path.exists(self.download_dir):
             os.makedirs(self.download_dir)
+        self.reprocess_valid_status_list = reprocess_valid_status_list
         
         self.json_extension = '.json'
         self.metadata_extension = '.metadata'
@@ -476,16 +478,33 @@ class S3Reader(BaseReader):
             if self.process_files:
                 _ = self.rename_files(None, self.local_folder, self.excluded_exts, None, self.json_extension, self.prefix + '/')
 
-            for f in os.listdir(self.local_folder):
-                f_extension = self.get_file_extension(f)
-                if self.excluded_exts is not None and f_extension in self.excluded_exts:
-                    continue
-                if not os.path.isfile(os.path.join(self.local_folder, f)):
-                    continue
-                suffix = Path(f).suffix.lower().replace('.', '')
-                if not self.is_supported_extension(suffix):
-                    continue
-                file_paths.append(os.path.join(self.local_folder, f))
+            if self.keys is not None:
+                for key in self.keys:
+                    file_name = os.path.basename(key)
+                    file_path = os.path.join(self.local_folder, file_name)
+                    if os.path.isfile(file_path):
+                        metadata_file = f"{file_path}{Defaults.PACKAGE_METADATA_POSTFIX}"
+                        process_file = True
+                        if os.path.isfile(metadata_file):
+                            process_file = False
+                            with open(metadata_file, 'r', encoding='utf-8') as file:
+                                metadata_file = json.load(file)
+                            upsert_status = metadata_file.get('indexStatus', None)
+                            if upsert_status is not None and upsert_status in self.reprocess_valid_status_list:
+                                process_file = True
+                        if process_file:
+                            file_paths.append(file_path)
+            else:
+                for f in os.listdir(self.local_folder):
+                    f_extension = self.get_file_extension(f)
+                    if self.excluded_exts is not None and f_extension in self.excluded_exts:
+                        continue
+                    if not os.path.isfile(os.path.join(self.local_folder, f)):
+                        continue
+                    suffix = Path(f).suffix.lower().replace('.', '')
+                    if not self.is_supported_extension(suffix):
+                        continue
+                    file_paths.append(os.path.join(self.local_folder, f))
 
             self.total_count = len(file_paths)
             return file_paths
