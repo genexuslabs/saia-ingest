@@ -60,3 +60,5 @@ debug/
 config/
 launch.json
 .secrets
+token.json
+settings.yaml

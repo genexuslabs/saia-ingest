@@ -512,6 +512,8 @@ class GoogleDriveReader():
             Lis[Document]: List of Document of data present in fileids.
         """
         file_paths = []
+        if fileids_meta is None:
+            return file_paths
         try:
             if self.download_dir:
                 temp_dir = self.download_dir
@@ -722,18 +724,14 @@ class GoogleDriveReader():
             name = file_metadata["name"]
             name_with_extension = name
 
+            if not os.path.isdir(self.download_dir):
+                os.mkdir(self.download_dir)
+
             try:
                 download_extension = self._mimetypes.get(file_metadata["mimeType"], {}).get("extension", "")
                 name_with_extension = name + download_extension
             except Exception as e:
                 download_extension = file_metadata["fileExtension"]
-                pass
-
-            '''
-            if file_metadata["mimeType"] == "application/vnd.google-apps.presentation":
-                download_extension = '.pdf'
-                name_with_extension = name + download_extension
-            '''
 
             metadata = {
                 "file_id": id,
