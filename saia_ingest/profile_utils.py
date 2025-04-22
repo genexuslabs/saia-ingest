@@ -47,6 +47,21 @@ def is_valid_profile(
     finally:
         return ret
 
+def get_name_from_metadata_file(
+        metadata_file: str,
+        label_key: str,
+        default_value: str,
+    ) -> str:
+    label_value = default_value
+    if os.path.exists(metadata_file):
+        with open(metadata_file, 'r') as f:
+            try:
+                data = json.load(f)
+                label_value = data.get(label_key, default_value)
+            except json.JSONDecodeError:
+                logging.getLogger().error(f"Error opening: {metadata_file}")
+    return label_value
+
 def file_upload(
         base_url: str,
         api_token: str,

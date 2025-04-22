@@ -16,7 +16,7 @@ from langchain.text_splitter import RecursiveCharacterTextSplitter
 
 from saia_ingest.config import Defaults
 from saia_ingest.file_utils import calculate_file_hash, load_hashes_from_json
-from saia_ingest.profile_utils import is_valid_profile, file_upload, file_delete, operation_log_upload, sync_failed_files, search_failed_to_delete
+from saia_ingest.profile_utils import get_name_from_metadata_file, is_valid_profile, file_upload, file_delete, operation_log_upload, sync_failed_files, search_failed_to_delete
 from saia_ingest.rag_api import RagApi
 from saia_ingest.utils import get_new_files, get_yaml_config, get_metadata_file, load_json_file
 
@@ -440,6 +440,8 @@ def saia_file_upload(
     file_name = os.path.basename(file)
 
     metadata_file = get_metadata_file(file_path, file_name, metadata_extension, metadata_args) if use_metadata_file else None
+    if metadata_file is not None:
+        file_name = metadata_file.get("name", file_name)
     ret = file_upload(saia_base_url, saia_api_token, saia_profile, file, file_name, metadata_file, True, optional_args)
     return ret
 
@@ -655,17 +657,37 @@ def ingest_gdrive(
         start_time = time.time()
 
         config = get_yaml_config(configuration)
-        gdrive_level = config.get('googledrive', {})
+        gdrive_level = config.get('gdrive', {})
         folder_id = gdrive_level.get('folder_id', None)
+        file_ids = gdrive_level.get('file_ids', None)
         mime_types = gdrive_level.get('mime_types', None)
         cred = gdrive_level.get('credentials', None)
+        token_path = gdrive_level.get('token_path', None)
         delete_local_folder = gdrive_level.get('delete_local_folder', False)
+        download_dir = gdrive_level.get('download_directory', None)
+        query_string = gdrive_level.get('query_string', None)
+        use_metadata_file = gdrive_level.get('use_metadata_file', False)
         metadata_args = gdrive_level.get('metadata_mappings', {})
+        exclude_ids = gdrive_level.get('exclude_ids', [])
 
-        loader = GoogleDriveReader(credentials_path=cred)
-        file_paths = loader.get_files(folder_id=folder_id, mime_types=mime_types)
+        loader = GoogleDriveReader(
+            folder_id=folder_id,
+            file_ids=file_ids,
+            credentials_path=cred,
+            mime_types=mime_types,
+            token_path=token_path,
+            download_dir=download_dir,
+            query_string=query_string,
+            use_metadata_file=use_metadata_file,
+            timestamp=timestamp,
+            exclude_ids=exclude_ids,
+        )
+        file_paths = loader.load_data(folder_id=folder_id, file_ids=file_ids, mime_types=mime_types)
 
-        doc_count = len(file_paths)
+        doc_count = 0
+        if file_paths is not None:
+            doc_count = len(file_paths)
+
         if doc_count <= 0:
             logging.getLogger().warning('No documents found')
             return ret
@@ -689,7 +711,6 @@ def ingest_gdrive(
             return ret
 
         ret = is_valid_profile(saia_base_url, saia_api_token, saia_profile)
-        use_metadata_file = False
         if ret is False:
             logging.getLogger().error(f"Invalid profile {saia_profile}")
             ret = False
@@ -711,7 +732,7 @@ def ingest_gdrive(
         return ret
 
     except Exception as e:
-        logging.getLogger().error(f"Error: {type(e)} {e}")
+        logging.getLogger().error(f"Error: {type(e)} {e}", exc_info=True)
         ret = False
     finally:
         return ret

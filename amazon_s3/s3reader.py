@@ -333,6 +333,11 @@ class S3Reader(BaseReader):
                     doc_num = item.get('docnum', None)
                     doc_name = item.get('docname', '')
                     file_type = item.get('filetype', 'None')
+                    if doc_num is None:
+                        doc_num = item.get('document_id', None)
+                        doc_name =doc_num
+                        _, extension = os.path.splitext(item.get('url', ''))
+                        file_type = extension.lstrip('.')
                     if file_type is None:
                         file_type = self.get_file_extension(doc_name)
 
@@ -797,11 +802,13 @@ class S3Reader(BaseReader):
             if date_string is not None:
                 try:
                     formatted_date, day, month, year = parse_date(date_string)
-                    date_string_description = f"{month}/{day}/{year}"
-                    initial_metadata['date_description'] = date_string_description
-                    # Add year
-                    initial_metadata[timestamp_tag] = formatted_date
-                    initial_metadata['year'] = year
+                    if year is not None:
+                        formatted_date = date_string
+                        date_string_description = f"{month}/{day}/{year}"
+                        initial_metadata['date_description'] = date_string_description
+                    if formatted_date is not None:
+                        initial_metadata[timestamp_tag] = formatted_date
+                        initial_metadata['year'] = year
                 except ValueError as e:
                     logging.getLogger().error(f"{e}")
 
@@ -833,11 +840,14 @@ class S3Reader(BaseReader):
         return initial_metadata
 
     def generate_description(self, initial_metadata, date_string_description, id:any):
-        default_values = defaultdict(lambda: "", initial_metadata)
-        if not self.description_template is None:
-            description = self.description_template.format(**default_values)
-        else:
-            name = initial_metadata.get('filename', id)
-            activity = initial_metadata.get('disclosureactivity', '')
-            description = f"{name} | {date_string_description} | {activity}"
-        initial_metadata['description'] = description
+        try:
+            default_values = defaultdict(lambda: "", initial_metadata)
+            if not self.description_template is None:
+                description = self.description_template.format(**default_values)
+            else:
+                name = initial_metadata.get('filename', id)
+                activity = initial_metadata.get('disclosureactivity', '')
+                description = f"{name} | {date_string_description} | {activity}"
+            initial_metadata['description'] = description
+        except Exception as e:
+            logging.getLogger().error(f"Error generating description from {initial_metadata} Error: {e}")

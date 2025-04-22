@@ -56,7 +56,7 @@ def handle_ingest(
     elif type == "github":
         ret = ingest_github(config_file)
     elif type == "gdrive":
-        ret = ingest_gdrive(config_file)
+        ret = ingest_gdrive(config_file, timestamp=timestamp)
     elif type == "fs":
         ret = ingest_file_system(config_file, timestamp=timestamp)
     else:

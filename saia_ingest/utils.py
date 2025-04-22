@@ -185,7 +185,7 @@ def get_new_files(paths:List[Path]):
 from datetime import datetime
 
 def parse_date(date_string):
-    if date_string is None:
+    if date_string is None or date_string == "":
         return None, None, None, None  # Handle the case where no date is provided
 
     date_string = date_string.split('T')[0] # Remove the time part if present
