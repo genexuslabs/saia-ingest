@@ -5,9 +5,11 @@
 
 import pytest
 import logging
+from dotenv import load_dotenv
 
 from saia_ingest.assistant_utils import get_assistants, get_assistant
 
+load_dotenv()
 
 @pytest.fixture
 def config(configuration) -> dict:

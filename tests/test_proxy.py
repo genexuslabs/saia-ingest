@@ -1,7 +1,9 @@
 import pytest
 import requests
 import json
+from dotenv import load_dotenv
 
+load_dotenv()
 
 @pytest.fixture
 def config(configuration) -> dict:
@@ -59,7 +61,7 @@ def test_proxy(config):
   url = f"{base_url}/proxy/openai/v1/chat/completions"
 
   payload = {
-    "model": "gpt-3.5-turbo",
+    "model": "gpt-4.1-nano",
     "messages": [{
       "role": "user",
       "content": "Hi there"
