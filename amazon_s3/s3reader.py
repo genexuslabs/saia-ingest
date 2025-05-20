@@ -181,6 +181,8 @@ class S3Reader(BaseReader):
         try:
             head_object_response = self.s3.meta.client.head_object(Bucket=self.bucket, Key=key)
             user_metadata = head_object_response.get('Metadata', user_metadata)
+            if self.metadata_early_merge is False:
+                self.augment_metadata(key, user_metadata)
         except Exception as e:
             logging.getLogger().error(f"Error getting metadata for {key}: {e}")
         return user_metadata
@@ -233,6 +235,8 @@ class S3Reader(BaseReader):
         self.metadata_key_element = self.alternative_document_service.get('metadata_key_element', 'documentid')
         self.description_template = self.alternative_document_service.get('description_template', None)
         self.skip_storage_download = self.alternative_document_service.get('skip_storage_download', False)
+        self.metadata_early_merge = self.alternative_document_service.get('metadata_early_merge', False)
+        self.metadata_force_use_url = self.alternative_document_service.get('metadata_force_use_url', False)
 
         key_vault_params = self.alternative_document_service.get('key_vault', None)
         if key_vault_params is not None:
@@ -328,6 +332,15 @@ class S3Reader(BaseReader):
                     logging.getLogger().info(f"{f_item_name} {len(elements)}")
 
                 for item in elements:
+
+                    if self.metadata_force_use_url is True:
+                        if "url" not in item:
+                            logging.getLogger().error(f"{item['document_id']} without url")
+                            continue
+                        elif item["url"] == None:
+                            logging.getLogger().error(f"{item['document_id']} invalid url")
+                            continue
+
                     self.total_count += 1
 
                     doc_num = item.get('docnum', None)
@@ -410,6 +423,21 @@ class S3Reader(BaseReader):
                         try:
                             prefix = f"{self.prefix}/{doc_num}" if self.prefix else doc_num
                             self.download_s3_file(prefix, temp_dir, downloaded_files)
+                            if self.metadata_early_merge:
+                                filename = f"{doc_num}.{file_type}"
+                                filtered_metadata_item = self.get_metadata_whitelist_items(item, metadata_whitelist_items)
+                                filtered_metadata_item.update({self.extension_tag: file_type})
+
+                                s3_initial_metadata = self.get_metadata(prefix)
+                                all_metadata = dict(ChainMap(s3_initial_metadata, filtered_metadata_item))
+                                final_metadata = {k: v for k, v in all_metadata.items() if v not in [None, 'null', '']}
+
+                                complete_metadata_file_path = f"{temp_dir}/{doc_num}{self.json_extension}"
+                                self.write_object_to_file(final_metadata, complete_metadata_file_path)
+                                if self.use_augment_metadata:
+                                    user_metadata = self.augment_metadata(temp_dir, doc_num, final_metadata, self.timestamp_tag)
+                                    if user_metadata:
+                                        self.write_object_to_file(user_metadata, complete_metadata_file_path)
                             doc_nums.append(doc_num)
                         except Exception as e:
                             self.error_count += 1
@@ -716,7 +744,8 @@ class S3Reader(BaseReader):
 
         rename_file = False
         if self.use_metadata_file and file_extension == '':
-            get_metadata = True
+            if self.metadata_early_merge is False:
+                get_metadata = True
             rename_file = True
 
         if get_metadata:
@@ -756,7 +785,7 @@ class S3Reader(BaseReader):
                     os.rename(file_path, new_path)
                     complete_path = new_path
                 except Exception as e:
-                    logging.getLogger().error(f"Error renaming file '{file_name}' using extension '{str_extension}' {e}")
+                    logging.getLogger().error(f"Error renaming file '{file_name}' using extension '{extension_from_metadata}' {e}")
                     return ""
         return complete_path
 
@@ -833,6 +862,7 @@ class S3Reader(BaseReader):
                     new_str = replacement['replace']
                     if old_str in url:
                         url = url.replace(old_str, new_str)
+                        initial_metadata['url'] = url
             self.generate_description(initial_metadata, date_string_description, id)
         except Exception as e:
             logging.getLogger().error(f"Error augmenting metadata for '{document_name}' from {initial_metadata} Error: {e}")

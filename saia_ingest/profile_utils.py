@@ -73,7 +73,10 @@ def file_upload(
         optional_args: dict = None,
     ) -> bool:
     ret = True
+    response = None
     response_body = ""
+    retry_delay = 150
+    connection_error_label = "Could not connect to RAG API endpoint"
     try:
         url = f"{base_url}/v1/search/profile/{profile}/document"
         start_time = time.time()
@@ -98,6 +101,8 @@ def file_upload(
         ret = response.ok
         if response.status_code != 200:
             message_response = f"{file_name},Error,{response.status_code}: {response.text}"
+            if connection_error_label in response.text:
+                time.sleep(retry_delay)
             ret = False
         else:
             if save_answer:
@@ -118,6 +123,8 @@ def file_upload(
             logging.getLogger().error(f"The url {url} does not exist.")
         elif e.response['Error']['Code'] == '403':
             logging.getLogger().error(f"Forbidden access to '{url}'")
+        elif connection_error_label in response.text:
+            time.sleep(retry_delay)
         else:
             raise e
         ret = False
