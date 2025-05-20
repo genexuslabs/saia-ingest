@@ -710,11 +710,12 @@ def ingest_gdrive(
             ret = False
             return ret
 
-        ret = is_valid_profile(saia_base_url, saia_api_token, saia_profile)
-        if ret is False:
-            logging.getLogger().error(f"Invalid profile {saia_profile}")
-            ret = False
-            return ret
+        ragApi = RagApi(saia_base_url, saia_api_token, saia_profile)
+
+        saia_file_ids_to_delete = search_failed_to_delete(file_paths) # TODO validate this code section
+        with concurrent.futures.ThreadPoolExecutor(max_workers=max_parallel_executions) as executor:
+            futures = [executor.submit(ragApi.delete_profile_document, id, saia_profile) for id in saia_file_ids_to_delete]
+        concurrent.futures.wait(futures)
 
         with concurrent.futures.ThreadPoolExecutor(max_workers=max_parallel_executions) as executor:
             futures = [executor.submit(saia_file_upload, saia_base_url, saia_api_token, saia_profile, file_item, use_metadata_file, '.json', metadata_args, optional_args) for file_item in file_paths]
