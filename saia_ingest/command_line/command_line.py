@@ -71,7 +71,7 @@ def handle_ingest(
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Globant Enterprise AI CLI")
+    parser = argparse.ArgumentParser(description="Globant Enterprise AI Ingestion CLI")
 
     # Subparsers for the main commands
     subparsers = parser.add_subparsers(title="commands", dest="command", required=True)

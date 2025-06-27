@@ -225,7 +225,12 @@ class ConfluenceReader(BaseReader):
 
         docs = []
         for page in pages:
-            if self.timestamp is not None and not self._is_greater_than_timestamp(page["id"], page["version"]["when"]):
+            page_type = page.get("type", None)
+            if page_type is not None and page_type == "folder":
+                continue
+            page_version = page.get("version", None)
+            page_version_when = page_version.get("when", None) if page_version else None
+            if self.timestamp is not None and page_version_when is not None and not self._is_greater_than_timestamp(page["id"], page_version_when):
                 continue
             doc = self.process_page(page, include_attachments, text_maker, space_key)
             if doc is not None:

@@ -230,7 +230,7 @@ def ingest_confluence(
 
         if page_ids is not None:
             try:
-                list_documents = load_documents(loader, page_ids=page_ids, include_attachments=include_attachments, include_children=include_children, timestamp=timestamp)
+                list_documents = load_documents(loader, page_ids=page_ids, include_attachments=include_attachments, include_children=include_children)
                 for item in list_documents:
                     documents.append(item)
             except Exception as e:
