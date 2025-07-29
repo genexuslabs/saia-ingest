@@ -16,12 +16,10 @@ saia:
   profile: !!str 'string' # Must match the RAG assistant ID
   max_parallel_executions: !!int 5
   upload_operation_log: !!bool False|True (default) # Check operations LOG for detail if enabled
-  ingestion: # optional key-value parameters from https://wiki.genexus.com/enterprise-ai/wiki?581,Ingestion+Provider
-    # example
-    provider: !!str geai
-    structure: !!str table
-    dpi: !!int 205
+  ingestion: # optional
 ```
+
+For the `ingestion` section, check [here](../geai_ingestion.md).
 
 The process will read files from the file system `fs` section and upload them to the defined `Enterprise AI` endpoint detailed on the `saia` configuration.
 

@@ -22,7 +22,10 @@ saia:
   profile: !!str 'string' # Must match the RAG assistant ID
   max_parallel_executions: !!int 5
   upload_operation_log: !!bool False|True (default) # Check operations LOG for detail if enabled
+  ingestion: # optional
 ```
+
+For the `ingestion` section, check [here](../geai_ingestion.md).
 
 ### Execution
 
