@@ -87,7 +87,7 @@ class SharePointReader:
                 yield item
                 
     def _generate_items_from_file_system(self, path, failed_status):
-        regex = re.compile(r".*\.metadata$")       
+        regex = re.compile(r".*\.metadata$")
         for root, _, files in os.walk(path):
             for file in files:
                 if regex.match(file):

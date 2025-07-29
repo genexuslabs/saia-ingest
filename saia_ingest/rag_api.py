@@ -26,7 +26,7 @@ class RagApi:
         
         max_parallel_executions (Optional[str]): The maximum parallel execution allowed. Default 5
     """
-    def __init__(self, base_url, api_token, profile, max_parallel_executions:int=5):
+    def __init__(self, base_url, api_token, profile, max_parallel_executions:int=5, ingestion:dict=None):
         """
         Inits a Rag_api instance.
 
@@ -51,6 +51,7 @@ class RagApi:
             raise ValueError('Invalid value: profile')
         self.profile = profile
         self.max_parallel_executions = max_parallel_executions if max_parallel_executions else 5
+        self.ingestion = ingestion
 
     def set_profile(self, profile_name):
         """
@@ -276,9 +277,9 @@ class RagApi:
         files = {
             'file': open(file_path, 'rb')
         }
-        data = None
+        data = self.ingestion or {}
         if metadata and self._is_valid_json(metadata):
-            data = {'metadata': metadata}
+            data['metadata'] = metadata
         else:
             if metadata and os.path.exists(metadata):
                 files.update({'metadata': open(metadata, 'r')})

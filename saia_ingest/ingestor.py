@@ -149,10 +149,11 @@ def ingest_jira(
         saia_api_token = saia_level.get('api_token', None)
         saia_profile = saia_level.get('profile', None)
         upload_operation_log = saia_level.get('upload_operation_log', False)
+        optional_args = saia_level.get('ingestion', {})
     
         if saia_base_url is not None:
 
-            ragApi = RagApi(saia_base_url, saia_api_token, saia_profile)
+            ragApi = RagApi(saia_base_url, saia_api_token, saia_profile, optional_args)
 
             target_file = f"{docs_file}.custom"
             shutil.copyfile(docs_file, target_file)
@@ -344,6 +345,7 @@ def ingest_github(configuration: str) -> bool:
         saia_api_token = saia_level.get('api_token', None)
         saia_profile = saia_level.get('profile', None)
         upload_operation_log = saia_level.get('upload_operation_log', False)
+        optional_args = saia_level.get('ingestion', {})
 
         embeddings_level = config.get('embeddings', {})
         openapi_key = embeddings_level.get('openapi_key', None)
@@ -398,7 +400,7 @@ def ingest_github(configuration: str) -> bool:
 
         if saia_base_url is not None:
 
-            ragApi = RagApi(saia_base_url, saia_api_token, saia_profile)
+            ragApi = RagApi(saia_base_url, saia_api_token, saia_profile, optional_args)
 
             target_file = f"{docs_file}.custom"
             shutil.copyfile(docs_file, target_file)
@@ -532,7 +534,7 @@ def ingest_s3(
         if saia_base_url is not None:
             # Use Saia API to ingest
 
-            ragApi = RagApi(saia_base_url, saia_api_token, saia_profile)
+            ragApi = RagApi(saia_base_url, saia_api_token, saia_profile, optional_args)
 
             if reprocess_failed_files:
                 # Clean files with failed state, re upload

@@ -52,7 +52,8 @@ class Sharepoint_Ingestor:
                     self.saia_configuration.get('base_url',""),
                     self.saia_configuration.get('api_token',""), 
                     self.saia_configuration.get('profile',""), 
-                    self.saia_configuration.get('max_parallel_executions',5)
+                    self.saia_configuration.get('max_parallel_executions',5),
+                    self.saia_configuration.get('ingestion',{})
                     )
     
     def _get_sharepoint_reader(self):
