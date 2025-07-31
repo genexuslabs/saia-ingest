@@ -6,12 +6,6 @@ import json
 import concurrent.futures
 import traceback
 
-#from llama_index import QueryBundle
-#from llama_index.retrievers import BaseRetriever
-#from typing import Any, List
-
-from langchain_openai import OpenAIEmbeddings
-from langchain_community.vectorstores import Pinecone
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 
 from saia_ingest.config import Defaults
@@ -53,8 +47,7 @@ def load_documents(loader, space_key='', page_ids=None, include_attachments=Fals
 def ingest(lc_documents, api_key, index_name, namespace, model="text-embedding-ada-002"):
     # https://python.langchain.com/docs/integrations/vectorstores/pinecone
 
-    embeddings = OpenAIEmbeddings(api_key=api_key, model=model)
-    vectorstore = Pinecone.from_documents(documents=lc_documents, embedding=embeddings, index_name=index_name, namespace=namespace)
+    raise NotImplementedError("Direct ingest is not supported")
 
 def create_folder(path):
     if not os.path.exists(path):
@@ -177,8 +170,10 @@ def ingest_jira(
 
             jira_namespace = jira_level.get('namespace', None)
 
-            os.environ['OPENAI_API_KEY'] = openapi_key
-            os.environ['PINECONE_API_KEY'] = vectorstore_api_key
+            if openapi_key is not None:
+                os.environ['OPENAI_API_KEY'] = openapi_key
+            if vectorstore_api_key is not None:
+                os.environ['PINECONE_API_KEY'] = vectorstore_api_key
 
             ingest(lc_documents, openapi_key, index_name, jira_namespace, embeddings_model)
 
@@ -221,10 +216,14 @@ def ingest_confluence(
         vectorstore_level = config.get('vectorstore', {})
         vectorstore_api_key = vectorstore_level.get('api_key', '')
 
-        os.environ['OPENAI_API_KEY'] = openapi_key
-        os.environ['CONFLUENCE_USERNAME'] = user_name
-        os.environ['CONFLUENCE_PASSWORD'] = conf_token
-        os.environ['PINECONE_API_KEY'] = vectorstore_api_key
+        if openapi_key is not None:
+            os.environ['OPENAI_API_KEY'] = openapi_key
+        if user_name is not None:
+            os.environ['CONFLUENCE_USERNAME'] = user_name
+        if conf_token is not None:
+            os.environ['CONFLUENCE_PASSWORD'] = conf_token
+        if vectorstore_api_key is not None:
+            os.environ['PINECONE_API_KEY'] = vectorstore_api_key
 
         loader = ConfluenceReader(base_url=confluence_server_url, cloud=cloud, timestamp=timestamp)
 
