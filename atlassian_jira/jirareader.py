@@ -1,10 +1,9 @@
 from datetime import datetime
 import re
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Tuple
 
 from llama_index.core.readers.base import BaseReader
 from llama_index.core.schema import Document
-from llama_index.core.bridge.langchain import Document as LCDocument
 
 from saia_ingest.sanitization import preprocess_text
 from jira.resources import PropertyHolder, CustomFieldOption, User, Issue
@@ -213,7 +212,7 @@ class JiraReader(BaseReader):
 
         return issues, total
 
-    def load_langchain_documents(self, **load_kwargs: Any) -> (List[LCDocument], int):
+    def load_langchain_documents(self, **load_kwargs: Any) -> Tuple[List[Any], int]:
         """Load data in LangChain document format."""
         docs, total = self.load_data(**load_kwargs)
         lc_docs = [d.to_langchain_format() for d in docs]
