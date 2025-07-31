@@ -335,10 +335,10 @@ class S3Reader(BaseReader):
 
                     if self.metadata_force_use_url is True:
                         if "url" not in item:
-                            logging.getLogger().error(f"{item['document_id']} without url")
+                            logging.getLogger().error(f"{item[self.metadata_key_element]} without url")
                             continue
                         elif item["url"] == None:
-                            logging.getLogger().error(f"{item['document_id']} invalid url")
+                            logging.getLogger().error(f"{item[self.metadata_key_element]} invalid url")
                             continue
 
                     self.total_count += 1
@@ -347,7 +347,7 @@ class S3Reader(BaseReader):
                     doc_name = item.get('docname', '')
                     file_type = item.get('filetype', 'None')
                     if doc_num is None:
-                        doc_num = item.get('document_id', None)
+                        doc_num = item.get(self.metadata_key_element, None)
                         doc_name =doc_num
                         _, extension = os.path.splitext(item.get('url', ''))
                         file_type = extension.lstrip('.')
@@ -363,7 +363,7 @@ class S3Reader(BaseReader):
                     original_key = f"{self.prefix}/{doc_num}" if self.prefix else doc_num
 
                     if self.skip_existing_file:
-                        doc_num = item.get('document_id', None)
+                        doc_num = item.get(self.metadata_key_element, None)
                         url = item.get('url', None)
                         if url is None:
                             logging.getLogger().error(f"{doc_num} invalid url")
@@ -386,7 +386,7 @@ class S3Reader(BaseReader):
                             continue
 
                     if self.skip_storage_download:
-                        doc_num = item.get('document_id', None)
+                        doc_num = item.get(self.metadata_key_element, None)
                         url = item.get('url', None)
                         filename_with_extension = os.path.basename(url)
                         doc_name, file_extension = os.path.splitext(filename_with_extension)
@@ -428,12 +428,14 @@ class S3Reader(BaseReader):
                                 filtered_metadata_item = self.get_metadata_whitelist_items(item, metadata_whitelist_items)
                                 filtered_metadata_item.update({self.extension_tag: file_type})
 
-                                s3_initial_metadata = self.get_metadata(prefix)
-                                all_metadata = dict(ChainMap(s3_initial_metadata, filtered_metadata_item))
+                                all_metadata = filtered_metadata_item
                                 final_metadata = {k: v for k, v in all_metadata.items() if v not in [None, 'null', '']}
 
                                 complete_metadata_file_path = f"{temp_dir}/{doc_num}{self.json_extension}"
                                 self.write_object_to_file(final_metadata, complete_metadata_file_path)
+                                
+                                self.element_dict[doc_num] = final_metadata
+                                
                                 if self.use_augment_metadata:
                                     user_metadata = self.augment_metadata(temp_dir, doc_num, final_metadata, self.timestamp_tag)
                                     if user_metadata:
@@ -448,7 +450,6 @@ class S3Reader(BaseReader):
                     if not self.skip_storage_download:
                         # add item to be processed later
                         self.element_ids.add(doc_num)
-                        self.element_dict[doc_num] = item
 
                     logging.getLogger().debug(f" {original_key} to {doc_num}")
 
@@ -759,6 +760,7 @@ class S3Reader(BaseReader):
             else:
                 s3_file = key_prefix + file_name
             initial_metadata = self.get_metadata(s3_file)
+            user_metadata = {}
             if self.use_augment_metadata:
                 user_metadata = self.augment_metadata(folder_path, file_name, initial_metadata, timestamp_tag)
             extension_from_metadata = user_metadata.get(extension_tag, None)
