@@ -26,7 +26,8 @@ from atlassian_confluence.confluencereader import ConfluenceReader
 from amazon_s3.s3reader import S3Reader
 from gdrive.gdrive_reader import GoogleDriveReader
 
-from llama_hub.github_repo import GithubClient, GithubRepositoryReader
+from llama_index.readers.github.repository.github_client import GithubClient
+from llama_index.readers.github import GithubRepositoryReader
 from fs.simple_folder_reader import SimpleDirectoryReader
 
 from saia_ingest.config import DefaultVectorStore
@@ -357,8 +358,10 @@ def ingest_github(configuration: str) -> bool:
         vectorstore_api_key = vectorstore_level.get('api_key', None)
         index_name = vectorstore_level.get('index_name', None)
 
-        os.environ['OPENAI_API_KEY'] = openapi_key
-        os.environ['PINECONE_API_KEY'] = vectorstore_api_key
+        if openapi_key is not None:
+            os.environ['OPENAI_API_KEY'] = openapi_key
+        if vectorstore_api_key is not None:
+            os.environ['PINECONE_API_KEY'] = vectorstore_api_key
 
         github_client = GithubClient(github_token, base_url, api_version, verbose)
 

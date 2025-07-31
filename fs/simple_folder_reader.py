@@ -8,7 +8,7 @@ import logging
 from pathlib import Path, PurePosixPath
 from typing import Any, Callable, Dict, Generator, List, Optional, Set, Type, Union
 
-from llama_index import Document
+from llama_index.core.schema import Document
 
 from saia_ingest.config import Defaults
 

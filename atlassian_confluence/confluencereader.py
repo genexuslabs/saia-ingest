@@ -5,8 +5,8 @@ import re
 from datetime import datetime, timezone
 from typing import Dict, List, Optional
 
-from llama_index.readers.base import BaseReader
-from llama_index.readers.schema.base import Document
+from llama_index.core.readers.base import BaseReader
+from llama_index.core.schema import Document
 from retrying import retry
 
 from saia_ingest.sanitization import preprocess_text

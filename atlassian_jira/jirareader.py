@@ -2,9 +2,9 @@ from datetime import datetime
 import re
 from typing import Any, Dict, List
 
-from llama_index.readers.base import BaseReader
-from llama_index.readers.schema.base import Document
-from llama_index.bridge.langchain import Document as LCDocument
+from llama_index.core.readers.base import BaseReader
+from llama_index.core.schema import Document
+from llama_index.core.bridge.langchain import Document as LCDocument
 
 from saia_ingest.sanitization import preprocess_text
 from jira.resources import PropertyHolder, CustomFieldOption, User, Issue

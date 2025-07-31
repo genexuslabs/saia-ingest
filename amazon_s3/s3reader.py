@@ -17,9 +17,9 @@ from saia_ingest.utils import detect_file_extension, do_get, parse_date
 from saia_ingest.profile_utils import get_bearer_token, get_json_response_from_url
 from saia_ingest.file_utils import calculate_file_hash
 
-from llama_index import download_loader
-from llama_index.readers.base import BaseReader
-from llama_index.readers.schema.base import Document
+from llama_index.core.readers import download_loader
+from llama_index.core.readers.base import BaseReader
+from llama_index.core.schema import Document
 
 from saia_ingest.vault.keyvault_client import KeyVaultClient
 
