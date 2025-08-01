@@ -27,7 +27,7 @@ def preprocess_text(text: str, remove_punctuation=True, remove_all_new_lines=Tru
         text = re.sub(r'\n', ' ', text)
 
     # clean up the spacing
-    text = re.sub('\s{2,}', " ", text)
+    text = re.sub(r'\s{2,}', " ", text)
 
     # Remove extra-dots from text (in general from index references)
     text = re.sub(r'\.{4,}', '...', text)

@@ -543,7 +543,7 @@ class ConfluenceReader(BaseReader):
 
             import pytesseract  # type: ignore
             from PIL import Image  # type: ignore
-            from reportlab.graphics import renderPM  # type: ignore
+            #from reportlab.graphics import renderPM  # type: ignore
             from svglib.svglib import svg2rlg  # type: ignore
         except ImportError:
             raise ImportError(
@@ -560,7 +560,8 @@ class ConfluenceReader(BaseReader):
             or response.content is None
         ):
             return text
-
+        return text
+        '''
         drawing = svg2rlg(BytesIO(response.content))
 
         img_data = BytesIO()
@@ -569,6 +570,7 @@ class ConfluenceReader(BaseReader):
         image = Image.open(img_data)
 
         return pytesseract.image_to_string(image)
+        '''
 
 
 if __name__ == "__main__":

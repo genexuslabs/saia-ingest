@@ -10,6 +10,11 @@ from logging.handlers import RotatingFileHandler
 from ..ingestor import ingest_s3, ingest_jira, ingest_confluence, ingest_github, ingest_gdrive, ingest_sharepoint, ingest_file_system
 from ..log import AccumulatingLogHandler
 
+import warnings
+warnings.filterwarnings(action="ignore", message="unclosed", category=ResourceWarning)
+warnings.filterwarnings("ignore", category=DeprecationWarning) 
+warnings.filterwarnings("ignore", category=SyntaxWarning, module='magic')
+
 logging.basicConfig(level=logging.INFO)
 sys.stdout.reconfigure(encoding='utf-8')
 timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
