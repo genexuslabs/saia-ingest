@@ -35,7 +35,7 @@ langchain_community = "^0.2.17"
 llama-index-readers-github = "*"
 llama-index = "^0.12.41"
 pytest = "^8.3.3"
-python-dotenv = "^0.19.2"
+python-dotenv = "^1.1.1"
 PyYAML = "^6.0"
 regex = "*"
 python-magic = { version = "^0.4.27", platform = "linux"}
