@@ -18,7 +18,7 @@ saia-cli = 'saia_ingest.command_line.command_line:main'
 
 [tool.poetry.dependencies]
 python = "^3.9,<4.0"
-atlassian-python-api = "^3.41.16"
+atlassian-python-api = "^4.0.4"
 boto3 = "^1.40.6"
 google-api-core = "^2.11.0"
 google-auth = "^2.19.1"
