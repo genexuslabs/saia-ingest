@@ -19,7 +19,7 @@ saia-cli = 'saia_ingest.command_line.command_line:main'
 [tool.poetry.dependencies]
 python = "^3.9,<4.0"
 atlassian-python-api = "^3.41.16"
-boto3 = "^1.40.1"
+boto3 = "^1.40.6"
 google-api-core = "^2.11.0"
 google-auth = "^2.19.1"
 google-cloud-aiplatform = "^1.75.0"
@@ -51,11 +51,11 @@ retrying = "^1.4.2"
 xlrd = "^2.0.1"
 html2text = "^2025.4.15"
 pytesseract = "^0.3.10"
-Pillow = "^10.0.1"
+Pillow = "^11.3.0"
 svglib = "^1.1.0"
 
 [tool.poetry.group.dev.dependencies]
-pylint = "^3.3.1"
+pylint = "^3.3.8"
 debugpy = "^1.8.16"
 deptry = "^0.23.0"
 
