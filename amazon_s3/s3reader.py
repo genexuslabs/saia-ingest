@@ -182,7 +182,7 @@ class S3Reader(BaseReader):
             head_object_response = self.s3.meta.client.head_object(Bucket=self.bucket, Key=key)
             user_metadata = head_object_response.get('Metadata', user_metadata)
             if self.metadata_early_merge is False:
-                self.augment_metadata(key, user_metadata)
+                self.augment_metadata(self.download_dir, key, user_metadata)
         except Exception as e:
             logging.getLogger().error(f"Error getting metadata for {key}: {e}")
         return user_metadata
