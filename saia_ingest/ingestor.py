@@ -45,8 +45,6 @@ def load_documents(loader, space_key='', page_ids=None, include_attachments=Fals
     return documents
 
 def ingest(lc_documents, api_key, index_name, namespace, model="text-embedding-ada-002"):
-    # https://python.langchain.com/docs/integrations/vectorstores/pinecone
-
     raise NotImplementedError("Direct ingest is not supported")
 
 def create_folder(path):
