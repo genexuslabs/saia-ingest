@@ -19,7 +19,7 @@ saia-cli = 'saia_ingest.command_line.command_line:main'
 [tool.poetry.dependencies]
 python = "^3.9,<4.0"
 atlassian-python-api = "^3.41.16"
-boto3 = "^1.40.16"
+boto3 = "^1.40.45"
 google-api-core = "^2.11.0"
 google-auth = "^2.19.1"
 google-cloud-aiplatform = "^1.110.0"
