@@ -20,7 +20,7 @@ saia-cli = 'saia_ingest.command_line.command_line:main'
 python = ">=3.10,<4.0"
 atlassian-python-api = "^3.41.16"
 boto3 = "^1.40.55"
-google-api-core = "^2.11.0"
+google-api-core = "^2.27.0"
 google-auth = "^2.19.1"
 google-cloud-aiplatform = "^1.121.0"
 google-cloud-bigquery = "^3.36.0"
