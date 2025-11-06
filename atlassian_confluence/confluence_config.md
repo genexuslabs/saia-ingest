@@ -10,6 +10,7 @@ confluence:
   spaces: # List of spaces to process
     - !!str 'space 1'
     - !!str 'space 2'
+  label: !!str 'your-label' # Optional: Filter content by label
   include_attachments: !!bool true|false (default)
   include_children: !!bool true|false (default)
   cloud: !!bool true|false (default)
@@ -46,9 +47,15 @@ saia-cli ingest -c ./config/confluence_sandbox.yaml --type confluence
 Expected output is similar to:
 
 ```bash
+# If using spaces:
 INFO:root:space <space_name1> documents <number>
 INFO:root:space <space_name2> documents <number>
 ...
+
+# If using label:
+INFO:root:label <label_name> documents <number>
+...
+
 INFO:root:Documents <total_number> Chunks <total_chunks>
 INFO:root:Successfully confluence ingestion 'timestamp' config: <path_to_config.yaml>
 ```
