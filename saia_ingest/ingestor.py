@@ -40,9 +40,34 @@ def split_documents(documents, chunk_size=DefaultVectorStore.CHUNK_SIZE, chunk_o
     lc_documents = text_splitter.split_documents(documents)
     return lc_documents
 
-def load_documents(loader, space_key='', page_ids=None, include_attachments=False, include_children=False):
-    documents = loader.load_langchain_documents(space_key=space_key, page_ids=page_ids, include_attachments=include_attachments, include_children=include_children)
-    return documents
+def convert_to_langchain_format(docs):
+    """Convert llama_index Document objects to LangChain compatible format."""
+    from langchain.schema import Document as LCDocument
+    
+    langchain_docs = []
+    for doc in docs:
+        # Create LangChain document with required attributes
+        lc_doc = LCDocument(
+            page_content=doc.text,
+            metadata=doc.extra_info
+        )
+        langchain_docs.append(lc_doc)
+    return langchain_docs
+
+def load_documents(loader, space_key='', page_ids=None, label=None, include_attachments=False, include_children=False):
+    """Load documents from Confluence using the appropriate parameters."""
+    # Determine which parameter to use based on priority
+    if page_ids:
+        raw_docs = loader.load_data(page_ids=page_ids, include_attachments=include_attachments, include_children=include_children)
+    elif label:
+        raw_docs = loader.load_data(label=label, include_attachments=include_attachments)
+    elif space_key:
+        raw_docs = loader.load_data(space_key=space_key, include_attachments=include_attachments, include_children=include_children)
+    else:
+        raise ValueError("Must specify one of space_key, page_ids, or label")
+        
+    # Convert to LangChain format
+    return convert_to_langchain_format(raw_docs)
 
 def ingest(lc_documents, api_key, index_name, namespace, model="text-embedding-ada-002"):
     raise NotImplementedError("Direct ingest is not supported")
@@ -198,6 +223,7 @@ def ingest_confluence(
         confluence_server_url = confluence_level.get('server_url', None)
         space_keys = confluence_level.get('spaces', None)
         page_ids = confluence_level.get('page_ids', None)
+        label = confluence_level.get('label', None)
         include_attachments = confluence_level.get('include_attachments', None)
         include_children = confluence_level.get('include_children', None)
         cloud = confluence_level.get('cloud', None)
@@ -227,6 +253,11 @@ def ingest_confluence(
 
         documents = []
 
+        # Validate that only one of the parameters is provided
+        param_count = sum(x is not None for x in [page_ids, space_keys, label])
+        if param_count == 0:
+            raise ValueError("Must specify at least one of 'page_ids', 'spaces', or 'label' in the configuration.")
+        
         if page_ids is not None:
             try:
                 list_documents = load_documents(loader, page_ids=page_ids, include_attachments=include_attachments, include_children=include_children)
@@ -234,6 +265,14 @@ def ingest_confluence(
                     documents.append(item)
             except Exception as e:
                 logging.getLogger().error(f"Error processing {page_ids}: {e}")
+        elif label is not None:
+            try:
+                label_documents = load_documents(loader, label=label, include_attachments=include_attachments)
+                for item in label_documents:
+                    documents.append(item)
+                logging.getLogger().info(f"label {label} documents {len(label_documents)}")
+            except Exception as e:
+                logging.getLogger().error(f"Error processing label {label}: {e}")
         elif space_keys is not None:
             for key in space_keys:
                 try:
