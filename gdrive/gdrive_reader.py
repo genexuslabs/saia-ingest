@@ -1,6 +1,10 @@
 """
 Google Drive files reader.
-Initial https://github.com/run-llama/llama_index/tree/main/llama-index-integrations/readers/llama-index-readers-google/llama_index/readers/google/drive
+Supports reading files directly from Google Drive, including the ability to resolve 
+and process Google Drive shortcuts/links to other documents.
+
+Initial implementation based on:
+https://github.com/run-llama/llama_index/tree/main/llama-index-integrations/readers/llama-index-readers-google/llama_index/readers/google/drive
 """
 
 import json
@@ -31,6 +35,13 @@ class GoogleDriveReader():
 
     Reads files from Google Drive. Credentials passed directly to the constructor
     will take precedence over those passed as file paths.
+
+    Features:
+    - Access files in Google Drive folders and subfolders
+    - Process various Google document types (Docs, Sheets, Presentations)
+    - Resolve and process Google Drive shortcuts/links to other documents
+    - Handle permission issues gracefully when accessing linked content
+    - Preserve relationship between shortcuts and target files in metadata
 
     Args:
         drive_id (Optional[str]): Drive id of the shared drive in google drive.
@@ -147,6 +158,10 @@ class GoogleDriveReader():
             "application/vnd.google-apps.presentation": {
                 "mimetype": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
                 "extension": ".pptx",
+            },
+            # Add shortcut handling - we'll resolve to target file
+            "application/vnd.google-apps.shortcut": {
+                "is_shortcut": True
             },
             #"application/pdf": {
             #    "mimetype": "application/pdf",
@@ -389,18 +404,91 @@ class GoogleDriveReader():
                             continue
                         if self.exclude_ids and item_id in self.exclude_ids:
                             continue
-                        fileids_meta.append(
-                            (
-                                item_id,
-                                author,
-                                item_path,
-                                item["mimeType"],
-                                item["createdTime"],
-                                item["modifiedTime"],
-                                self._get_drive_link(item_id),
+                            
+                        # Handle Google Drive shortcuts
+                        if item["mimeType"] == "application/vnd.google-apps.shortcut":
+                            try:
+                                # Extract target file ID from the shortcut
+                                target_id = item.get("shortcutDetails", {}).get("targetId")
+                                if not target_id:
+                                    logger.warning(f"Shortcut {item_id} has no target ID, skipping")
+                                    continue
+                                
+                                # Fetch the target file metadata
+                                try:
+                                    target_file = service.files().get(
+                                        fileId=target_id, 
+                                        supportsAllDrives=True, 
+                                        fields="*"
+                                    ).execute()
+                                except Exception as e:
+                                    logger.warning(
+                                        f"Could not access target file {target_id} for shortcut {item_id}: {e}"
+                                    )
+                                    continue
+                                
+                                # Apply the same filters to the target file
+                                if not self.is_greater_than_timestamp(target_file["modifiedTime"]):
+                                    continue
+                                if self.exclude_ids and target_id in self.exclude_ids:
+                                    continue
+                                
+                                # Determine the author for the target file
+                                is_target_shared_drive = "driveId" in target_file
+                                target_author = (
+                                    target_file["owners"][0]["displayName"]
+                                    if not is_target_shared_drive
+                                    else "Shared Drive"
+                                )
+                                
+                                # Store the original shortcut metadata
+                                shortcut_metadata = {
+                                    "shortcut_id": item_id,
+                                    "shortcut_name": item.get("name", ""),
+                                    "shortcut_path": item_path
+                                }
+                                
+                                # Store target file metadata with reference to shortcut
+                                fileids_meta.append(
+                                    (
+                                        target_id,  # Use target file ID for downloads
+                                        target_author,
+                                        item_path,  # Keep original shortcut path
+                                        target_file["mimeType"],
+                                        target_file["createdTime"],
+                                        target_file["modifiedTime"],
+                                        self._get_drive_link(target_id),
+                                    )
+                                )
+                                
+                                # Save extended metadata that includes shortcut information
+                                target_file["sourceShortcutId"] = item_id
+                                target_file["sourceShortcutPath"] = item_path
+                                target_file["sourceShortcutName"] = item.get("name", "")
+                                self.save_metadata(target_file, target_author, item_path)
+                                
+                                logger.info(f"Successfully resolved shortcut: {item_path} -> {target_file.get('name', '')}")
+                                
+                            except Exception as e:
+                                logger.warning(
+                                    f"Error processing shortcut {item_id} at {item_path}: {e}",
+                                    exc_info=True
+                                )
+                                continue
+                        else:
+                            # Regular file handling (non-shortcut)
+                            fileids_meta.append(
+                                (
+                                    item_id,
+                                    author,
+                                    item_path,
+                                    item["mimeType"],
+                                    item["createdTime"],
+                                    item["modifiedTime"],
+                                    self._get_drive_link(item_id),
+                                )
                             )
-                        )
-                        self.save_metadata(item, author, item_path)
+                            self.save_metadata(item, author, item_path)
             else:
                 # Get the file details
                 file = (
@@ -408,6 +496,78 @@ class GoogleDriveReader():
                     .get(fileId=file_id, supportsAllDrives=True, fields="*")
                     .execute()
                 )
+                
+                # Handle shortcut directly accessed by ID
+                if file["mimeType"] == "application/vnd.google-apps.shortcut":
+                    try:
+                        # Extract target file ID from the shortcut
+                        target_id = file.get("shortcutDetails", {}).get("targetId")
+                        if not target_id:
+                            logger.warning(f"Shortcut {file_id} has no target ID, skipping")
+                            return fileids_meta
+                        
+                        # Fetch the target file metadata
+                        try:
+                            target_file = service.files().get(
+                                fileId=target_id, 
+                                supportsAllDrives=True, 
+                                fields="*"
+                            ).execute()
+                        except Exception as e:
+                            logger.warning(
+                                f"Could not access target file {target_id} for shortcut {file_id}: {e}"
+                            )
+                            return fileids_meta
+                        
+                        # Apply the same filters to the target file
+                        if not self.is_greater_than_timestamp(target_file["modifiedTime"]):
+                            return fileids_meta
+                        if self.exclude_ids and target_id in self.exclude_ids:
+                            return fileids_meta
+                        
+                        # Get the full file path for the shortcut
+                        file_path = self._get_relative_path(
+                            service, file_id, folder_id or self.folder_id
+                        )
+                        
+                        # Determine the author for the target file
+                        is_target_shared_drive = "driveId" in target_file
+                        target_author = (
+                            target_file["owners"][0]["displayName"]
+                            if not is_target_shared_drive
+                            else "Shared Drive"
+                        )
+                        
+                        # Save extended metadata that includes shortcut information
+                        target_file["sourceShortcutId"] = file_id
+                        target_file["sourceShortcutPath"] = file_path
+                        target_file["sourceShortcutName"] = file.get("name", "")
+                        
+                        # Store target file metadata with reference to shortcut
+                        fileids_meta.append(
+                            (
+                                target_id,  # Use target file ID for downloads
+                                target_author,
+                                file_path,  # Keep original shortcut path
+                                target_file["mimeType"],
+                                target_file["createdTime"],
+                                target_file["modifiedTime"],
+                                self._get_drive_link(target_id),
+                            )
+                        )
+                        self.save_metadata(target_file, target_author, file_path)
+                        
+                        logger.info(f"Successfully resolved direct shortcut ID {file_id} -> {target_file.get('name', '')}")
+                        return fileids_meta
+                        
+                    except Exception as e:
+                        logger.warning(
+                            f"Error processing shortcut {file_id}: {e}",
+                            exc_info=True
+                        )
+                        return fileids_meta
+                
+                # Regular file handling
                 # Get metadata of the file
                 is_shared_drive = "driveId" in file
                 author = (
@@ -743,6 +903,19 @@ class GoogleDriveReader():
                 "modified": file_metadata["modifiedTime"],
                 "url": self._get_drive_link(id),
             }
+            
+            # Include shortcut information if this file was accessed via a shortcut
+            if "sourceShortcutId" in file_metadata:
+                metadata["source_shortcut_id"] = file_metadata["sourceShortcutId"]
+                metadata["source_shortcut_path"] = file_metadata.get("sourceShortcutPath", "")
+                metadata["source_shortcut_name"] = file_metadata.get("sourceShortcutName", "")
+                
+                # Log information about the shortcut resolution
+                if self.verbose:
+                    logger.info(
+                        f"File accessed via shortcut: {file_metadata.get('sourceShortcutName', '')} -> {name}"
+                    )
+            
             metadata_path = os.path.join(self.download_dir, f"{id}.json")
             with open(metadata_path, "w") as f:
                 json.dump(metadata, f)
