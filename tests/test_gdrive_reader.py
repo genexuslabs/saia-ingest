@@ -1,7 +1,7 @@
 import os
 import tempfile
 import pytest
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock, patch, mock_open
 from pathlib import Path
 
 from gdrive.gdrive_reader import GoogleDriveReader
@@ -32,8 +32,8 @@ def gdrive_reader():
         yield reader
 
 
-class TestGoogleDriveShortcuts:
-    """Test cases for Google Drive shortcut functionality"""
+class TestGoogleDriveReader:
+    """Test cases for Google Drive Reader functionality"""
 
     @patch('googleapiclient.discovery.build')
     def test_shortcut_detection_in_folder(self, mock_build, gdrive_reader, mock_service):
@@ -96,7 +96,7 @@ class TestGoogleDriveShortcuts:
         # Mock other dependencies to focus on the shortcut resolution logic
         gdrive_reader.save_metadata = MagicMock()
         gdrive_reader.is_greater_than_timestamp = MagicMock(return_value=True)
-        gdrive_reader.exclude_ids = None
+        gdrive_reader.exclude_ids = []
         
         # When _resolve_shortcut is called, return expected values directly
         # This isolates the test from implementation details of _resolve_shortcut
@@ -173,7 +173,7 @@ class TestGoogleDriveShortcuts:
         gdrive_reader.save_metadata = MagicMock()
         gdrive_reader._get_relative_path = MagicMock(return_value="path/to/shortcut")
         gdrive_reader.is_greater_than_timestamp = MagicMock(return_value=True)
-        gdrive_reader.exclude_ids = None
+        gdrive_reader.exclude_ids = []
         
         # Call the method with a direct shortcut ID
         result = gdrive_reader._get_fileids_meta(file_id="direct_shortcut_123")
@@ -290,7 +290,7 @@ class TestGoogleDriveShortcuts:
             
             # Mock is_greater_than_timestamp to return True
             gdrive_reader.is_greater_than_timestamp = MagicMock(return_value=True)
-            gdrive_reader.exclude_ids = None
+            gdrive_reader.exclude_ids = []
             
             # Replace _get_relative_path with a mock
             gdrive_reader._get_relative_path = MagicMock(return_value="metadata/path/to/shortcut")
@@ -310,3 +310,160 @@ class TestGoogleDriveShortcuts:
             assert metadata["sourceShortcutId"] == "metadata_shortcut_123", "Should include source shortcut ID"
             assert metadata["sourceShortcutName"] == "Metadata Shortcut", "Should include source shortcut name"
             assert metadata["sourceShortcutPath"] == "metadata/path/to/shortcut", "Should include source shortcut path"
+            
+    # Regular file functionality tests
+    
+    @patch('googleapiclient.discovery.build')
+    def test_regular_file_in_folder(self, mock_build, gdrive_reader, mock_service):
+        """Test basic listing and handling of regular files in a folder"""
+        # Setup mock API responses
+        mock_build.return_value = mock_service
+        
+        # Mock a folder with multiple regular files of different types
+        folder_items = {
+            "files": [
+                {
+                    "id": "doc_123",
+                    "name": "Test Document",
+                    "mimeType": "application/vnd.google-apps.document",
+                    "owners": [{"displayName": "Test User"}],
+                    "modifiedTime": "2025-01-01T00:00:00.000Z",
+                    "createdTime": "2025-01-01T00:00:00.000Z"
+                },
+                {
+                    "id": "sheet_456",
+                    "name": "Test Spreadsheet",
+                    "mimeType": "application/vnd.google-apps.spreadsheet",
+                    "owners": [{"displayName": "Test User"}],
+                    "modifiedTime": "2025-01-01T00:00:00.000Z",
+                    "createdTime": "2025-01-01T00:00:00.000Z"
+                }
+            ],
+            "nextPageToken": None
+        }
+        
+        # Mock folder API responses
+        folder_response = {"name": "Test Folder"}
+        
+        def get_mock_side_effect(*args, **kwargs):
+            mock_response = MagicMock()
+            if kwargs.get('fileId') == 'test_folder':
+                mock_response.execute.return_value = folder_response
+            return mock_response
+            
+        # Setup API call responses
+        list_mock = mock_service.files.return_value.list
+        list_mock.return_value.execute.return_value = folder_items
+        
+        get_mock = mock_service.files.return_value.get
+        get_mock.side_effect = get_mock_side_effect
+        
+        # Mock helper methods
+        gdrive_reader._get_relative_path = MagicMock()
+        gdrive_reader._get_relative_path.side_effect = lambda service, file_id, folder_id: f"Test Folder/{folder_items['files'][0]['name'] if file_id == 'doc_123' else folder_items['files'][1]['name']}"
+        
+        gdrive_reader.save_metadata = MagicMock()
+        gdrive_reader.is_greater_than_timestamp = MagicMock(return_value=True)
+        gdrive_reader.exclude_ids = []
+        
+        # Call the method to test folder listing
+        result = gdrive_reader._get_fileids_meta(folder_id="test_folder")
+        
+        # Verify results: we should get all regular files in the folder
+        assert len(result) == 2, "Should find both files in the folder"
+        
+        # Check first file
+        assert result[0][0] == "doc_123", "Should get correct file ID"
+        assert result[0][1] == "Test User", "Should get correct owner"
+        assert result[0][3] == "application/vnd.google-apps.document", "Should get correct MIME type"
+        
+        # Check second file
+        assert result[1][0] == "sheet_456", "Should get correct file ID"
+        assert result[1][3] == "application/vnd.google-apps.spreadsheet", "Should get correct MIME type"
+        
+        # Verify save_metadata was called for both files
+        save_metadata_calls = gdrive_reader.save_metadata.call_args_list
+        assert len(save_metadata_calls) == 2, "save_metadata should be called for both files"
+        assert save_metadata_calls[0][0][0]["id"] == "doc_123"
+        assert save_metadata_calls[1][0][0]["id"] == "sheet_456"
+
+    @patch('googleapiclient.discovery.build')
+    def test_direct_file_access(self, mock_build, gdrive_reader, mock_service):
+        """Test direct access to a regular file by ID"""
+        # Setup mock API responses
+        mock_build.return_value = mock_service
+        
+        # Mock a regular file
+        file_data = {
+            "id": "file_123",
+            "name": "Direct Access File",
+            "mimeType": "application/vnd.google-apps.document",
+            "owners": [{"displayName": "File Owner"}],
+            "modifiedTime": "2025-01-01T00:00:00.000Z",
+            "createdTime": "2025-01-01T00:00:00.000Z"
+        }
+        
+        # Setup file get response
+        get_mock = mock_service.files.return_value.get
+        get_mock.return_value.execute.return_value = file_data
+        
+        # Mock other methods
+        gdrive_reader._get_relative_path = MagicMock(return_value="Direct Access File")
+        gdrive_reader.save_metadata = MagicMock()
+        gdrive_reader.is_greater_than_timestamp = MagicMock(return_value=True)
+        gdrive_reader.exclude_ids = []
+        
+        # Call the method with direct file ID
+        result = gdrive_reader._get_fileids_meta(file_id="file_123")
+        
+        # Verify results
+        assert len(result) == 1, "Should return one file"
+        assert result[0][0] == "file_123", "Should get correct file ID"
+        assert result[0][1] == "File Owner", "Should get correct owner"
+        assert result[0][3] == "application/vnd.google-apps.document", "Should get correct MIME type"
+        
+        # Verify save_metadata was called correctly
+        save_metadata_calls = gdrive_reader.save_metadata.call_args_list
+        assert len(save_metadata_calls) == 1, "save_metadata should be called once"
+        assert save_metadata_calls[0][0][0]["id"] == "file_123"
+        assert save_metadata_calls[0][0][0]["name"] == "Direct Access File"
+
+    @patch('googleapiclient.discovery.build')
+    @patch('io.BytesIO')
+    @patch('builtins.open', new_callable=mock_open)
+    @patch('googleapiclient.http.MediaIoBaseDownload')
+    def test_download_file(self, mock_download, mock_file_open, mock_bytesio, mock_build, gdrive_reader, mock_service):
+        """Test file download functionality"""
+        # Setup API mock
+        mock_build.return_value = mock_service
+        
+        # Mock file data
+        file_data = {
+            "id": "download_123",
+            "name": "Download Test.docx",
+            "mimeType": "application/vnd.google-apps.document"
+        }
+        
+        # Mock get response
+        get_mock = mock_service.files.return_value.get
+        get_mock.return_value.execute.return_value = file_data
+        
+        # Mock export media for Google Docs
+        export_mock = mock_service.files.return_value.export_media
+        export_mock.return_value = "export_request"
+        
+        # Mock download process
+        downloader_instance = mock_download.return_value
+        downloader_instance.next_chunk.return_value = (None, True)  # (status, done)
+        
+        # Call download method
+        result = gdrive_reader._download_file("download_123", "/tmp/test_file")
+        
+        # Verify export_media was called for Google Doc
+        export_mock.assert_called_once()
+        
+        # Verify file was written
+        mock_file_open.assert_called_once()
+        
+        # Verify file path returned
+        assert result is not None, "Should return downloaded file path"
