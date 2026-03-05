@@ -6,7 +6,7 @@ import json
 import concurrent.futures
 import traceback
 
-from langchain.text_splitter import RecursiveCharacterTextSplitter
+from langchain_text_splitters import RecursiveCharacterTextSplitter
 
 from saia_ingest.config import Defaults
 from saia_ingest.file_utils import calculate_file_hash, load_hashes_from_json
@@ -42,7 +42,7 @@ def split_documents(documents, chunk_size=DefaultVectorStore.CHUNK_SIZE, chunk_o
 
 def convert_to_langchain_format(docs):
     """Convert llama_index Document objects to LangChain compatible format."""
-    from langchain.schema import Document as LCDocument
+    from langchain_core.documents import Document as LCDocument
     
     langchain_docs = []
     for doc in docs:
