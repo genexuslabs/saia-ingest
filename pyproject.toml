@@ -58,5 +58,5 @@ griffe = "<2.0"
 [tool.poetry.group.dev.dependencies]
 pylint = "^4.0.2"
 debugpy = "^1.8.20"
-deptry = "^0.23.0"
+deptry = ">=0.23,<0.26"
 
