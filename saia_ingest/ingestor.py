@@ -6,36 +6,21 @@ import json
 import concurrent.futures
 import traceback
 
-from langchain_text_splitters import RecursiveCharacterTextSplitter
-
-from saia_ingest.config import Defaults
-from saia_ingest.file_utils import calculate_file_hash, load_hashes_from_json
-from saia_ingest.profile_utils import get_name_from_metadata_file, is_valid_profile, file_upload, file_delete, operation_log_upload, sync_failed_files, search_failed_to_delete
-from saia_ingest.rag_api import RagApi
-from saia_ingest.utils import get_new_files, get_yaml_config, get_metadata_file, load_json_file
-
-# tweaked the implementation locally
-from atlassian_jira.jirareader import JiraReader
-from atlassian_confluence.confluencereader import ConfluenceReader
-from amazon_s3.s3reader import S3Reader
-from gdrive.gdrive_reader import GoogleDriveReader
-
-from llama_index.readers.github.repository.github_client import GithubClient
-from llama_index.readers.github import GithubRepositoryReader
-from fs.simple_folder_reader import SimpleDirectoryReader
-
-from saia_ingest.config import DefaultVectorStore
-
 from typing import List, Dict
 import logging
 import shutil
 
-from sharepoint.sharepoint_ingestor import Sharepoint_Ingestor
-
-
 verbose = False
 
-def split_documents(documents, chunk_size=DefaultVectorStore.CHUNK_SIZE, chunk_overlap=DefaultVectorStore.CHUNK_OVERLAP):
+def split_documents(documents, chunk_size=None, chunk_overlap=None):
+    from langchain_text_splitters import RecursiveCharacterTextSplitter
+    from saia_ingest.config import DefaultVectorStore
+    
+    if chunk_size is None:
+        chunk_size = DefaultVectorStore.CHUNK_SIZE
+    if chunk_overlap is None:
+        chunk_overlap = DefaultVectorStore.CHUNK_OVERLAP
+    
     text_splitter = RecursiveCharacterTextSplitter(chunk_size=chunk_size, chunk_overlap=chunk_overlap)
     lc_documents = text_splitter.split_documents(documents)
     return lc_documents
@@ -109,6 +94,11 @@ def ingest_jira(
         configuration: str,
         timestamp: datetime = None,
     ) -> bool:
+    from atlassian_jira.jirareader import JiraReader
+    from saia_ingest.rag_api import RagApi
+    from saia_ingest.utils import get_yaml_config
+    from saia_ingest.profile_utils import operation_log_upload
+    
     ret = True
     start_time = time.time()
     try:
@@ -474,6 +464,9 @@ def saia_file_upload(
         metadata_args: dict = None,
         optional_args: dict = None,
     ) -> bool:
+    from saia_ingest.utils import get_metadata_file
+    from saia_ingest.profile_utils import file_upload
+    
     ret = True
 
     file = os.path.normpath(file_item)
@@ -902,5 +895,7 @@ def ingest_sharepoint(
         configuration: str,
         start_time: datetime,
     ) -> bool:
+    from sharepoint.sharepoint_ingestor import Sharepoint_Ingestor
+    
     ingestor = Sharepoint_Ingestor(configuration, start_time)
     return ingestor.execute()

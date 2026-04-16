@@ -5,28 +5,6 @@ from typing import Any, Optional
 from datetime import datetime, timezone, timedelta
 import logging
 import sys
-from logging.handlers import RotatingFileHandler
-
-from ..ingestor import ingest_s3, ingest_jira, ingest_confluence, ingest_github, ingest_gdrive, ingest_sharepoint, ingest_file_system
-from ..log import AccumulatingLogHandler
-
-import warnings
-warnings.filterwarnings(action="ignore", message="unclosed", category=ResourceWarning)
-warnings.filterwarnings("ignore", category=DeprecationWarning) 
-warnings.filterwarnings("ignore", category=SyntaxWarning, module='magic')
-
-logging.basicConfig(level=logging.INFO)
-sys.stdout.reconfigure(encoding='utf-8')
-timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-log_file_name = f"debug/run_{timestamp}.txt"
-log_dir = os.path.dirname(log_file_name)
-if not os.path.isdir(log_dir):
-    os.mkdir(log_dir)
-file_handler = RotatingFileHandler(log_file_name, maxBytes=1024*1024*1024, backupCount=50)
-formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
-file_handler.setFormatter(formatter)
-logging.getLogger().addHandler(file_handler)
-logging.getLogger().addHandler(AccumulatingLogHandler())
 
 def handle_ingest(
     config: Optional[str] = None,
@@ -38,6 +16,35 @@ def handle_ingest(
     """
     Handles the ingest command.
     """
+    from logging.handlers import RotatingFileHandler
+    from ..log import AccumulatingLogHandler
+    import warnings
+    
+    # Setup warnings
+    warnings.filterwarnings(action="ignore", message="unclosed", category=ResourceWarning)
+    warnings.filterwarnings("ignore", category=DeprecationWarning) 
+    warnings.filterwarnings("ignore", category=SyntaxWarning, module='magic')
+    
+    # Setup logging
+    logging.basicConfig(level=logging.INFO)
+    sys.stdout.reconfigure(encoding='utf-8')
+    log_timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    log_file_name = f"debug/run_{log_timestamp}.txt"
+    log_dir = os.path.dirname(log_file_name)
+    if not os.path.isdir(log_dir):
+        os.mkdir(log_dir)
+    
+    formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+    
+    file_handler = RotatingFileHandler(log_file_name, maxBytes=1024*1024*1024, backupCount=50)
+    file_handler.setFormatter(formatter)
+    logging.getLogger().addHandler(file_handler)
+    
+    console_handler = logging.StreamHandler(sys.stdout)
+    console_handler.setFormatter(formatter)
+    logging.getLogger().addHandler(console_handler)
+    
+    logging.getLogger().addHandler(AccumulatingLogHandler())
 
     assert config is not None
     assert type is not None
@@ -51,18 +58,25 @@ def handle_ingest(
         timestamp = datetime.fromisoformat(timestamp).replace(tzinfo=timezone.utc)
 
     if type == "s3":
+        from ..ingestor import ingest_s3
         ret = ingest_s3(config_file, start_time, timestamp=timestamp)
     elif type == "sharepoint":
+        from ..ingestor import ingest_sharepoint
         ret = ingest_sharepoint(config_file, start_time)
     elif type == "jira":
+        from ..ingestor import ingest_jira
         ret = ingest_jira(config_file, timestamp=timestamp)
     elif type == "confluence":
+        from ..ingestor import ingest_confluence
         ret = ingest_confluence(config_file, timestamp=timestamp)
     elif type == "github":
+        from ..ingestor import ingest_github
         ret = ingest_github(config_file)
     elif type == "gdrive":
+        from ..ingestor import ingest_gdrive
         ret = ingest_gdrive(config_file, timestamp=timestamp)
     elif type == "fs":
+        from ..ingestor import ingest_file_system
         ret = ingest_file_system(config_file, timestamp=timestamp)
     else:
         logging.getLogger().error(f"Unknown {type} type")
