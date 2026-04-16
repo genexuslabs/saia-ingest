@@ -6,9 +6,15 @@ import json
 import concurrent.futures
 import traceback
 
-from typing import List, Dict
 import logging
 import shutil
+
+from saia_ingest.config import Defaults
+from saia_ingest.file_utils import calculate_file_hash, load_hashes_from_json
+from saia_ingest.utils import get_yaml_config
+from saia_ingest.profile_utils import is_valid_profile, file_delete, operation_log_upload, sync_failed_files, search_failed_to_delete
+from saia_ingest.rag_api import RagApi
+from saia_ingest.utils import get_new_files, get_yaml_config, get_metadata_file, load_json_file
 
 verbose = False
 
@@ -95,9 +101,6 @@ def ingest_jira(
         timestamp: datetime = None,
     ) -> bool:
     from atlassian_jira.jirareader import JiraReader
-    from saia_ingest.rag_api import RagApi
-    from saia_ingest.utils import get_yaml_config
-    from saia_ingest.profile_utils import operation_log_upload
     
     ret = True
     start_time = time.time()
@@ -200,6 +203,7 @@ def ingest_confluence(
         configuration: str,
         timestamp: datetime = None,
     ) -> bool:
+    from atlassian_confluence.confluencereader import ConfluenceReader
 
     ret = True
     start_time = time.time()
@@ -344,6 +348,9 @@ def ingest_confluence(
         return ret
 
 def ingest_github(configuration: str) -> bool:
+    from llama_index.readers.github.repository.github_client import GithubClient
+    from llama_index.readers.github import GithubRepositoryReader
+    
     ret = True
     start_time = time.time()
     try:
@@ -464,7 +471,6 @@ def saia_file_upload(
         metadata_args: dict = None,
         optional_args: dict = None,
     ) -> bool:
-    from saia_ingest.utils import get_metadata_file
     from saia_ingest.profile_utils import file_upload
     
     ret = True
@@ -484,6 +490,8 @@ def ingest_s3(
         start_time: datetime,
         timestamp: datetime = None,
     ) -> bool:
+    from amazon_s3.s3reader import S3Reader
+    
     ret = True
     success_count = 0
     failed_count = 0
@@ -688,6 +696,8 @@ def ingest_gdrive(
     ) -> bool:
     ret = True
     try:
+        from gdrive.gdrive_reader import GoogleDriveReader
+
         start_time = time.time()
 
         config = get_yaml_config(configuration)
@@ -776,6 +786,8 @@ def ingest_file_system(
         configuration: str,
         timestamp: datetime = None,
     ) -> bool:
+    from fs.simple_folder_reader import SimpleDirectoryReader
+
     ret = True
     try:
         start_time = time.time()
