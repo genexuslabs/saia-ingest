@@ -34,10 +34,10 @@ class Sharepoint_Ingestor:
         self.saia_configuration = self._get_saia_configuration(config)
         self.sharepoint_configuration = self._get_sharepoint_configuration(config)
         self.rag_api = self._get_rag_api()
-        self.reader = self._get_sharepoint_reader()
         download_directories, clean_status = self._get_download_configurations(config)
         self.download_directories = download_directories
         self.clean_status = clean_status
+        self.reader = self._get_sharepoint_reader()
         self.reprocess_configuration = self._get_reprocess_configuration()
         self.start_time = start_time
     
@@ -59,6 +59,7 @@ class Sharepoint_Ingestor:
     def _get_sharepoint_reader(self):
         return SharePointReader(
                                 self.sharepoint_configuration.get('connection',{}),
+                                metadata_path=self.download_directories["metadata"]
                                 )
      
     def _get_reprocess_configuration(self):
@@ -108,7 +109,9 @@ class Sharepoint_Ingestor:
             concurrent.futures.wait(futures)
 
     def _save_metadata(self, metadata):
-        name = metadata["sharepoint"]["name"] + ".metadata"
+        # Use the unique SharePoint ID instead of filename to avoid overwrites with duplicate names
+        file_id = metadata["sharepoint"]["id"]
+        name = f"{file_id}.metadata"
         metadata_path = os.path.join(self.download_directories["metadata"], name )
         with open(metadata_path, "w") as f:
             f.write(json.dumps(metadata, indent=2))
