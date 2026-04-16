@@ -38,7 +38,7 @@ pytest = "^8.4.2"
 python-dotenv = "^1.2.2"
 PyYAML = "^6.0"
 regex = "*"
-python-magic = { version = "^0.4.27", platform = "linux"}
+python-magic = { version = "^0.4.27", markers = "sys_platform == 'linux' or sys_platform == 'darwin'"}
 python-magic-bin = {version = "^0.4.14", platform = "win32"}
 google-auth-oauthlib = "^1.2.0"
 pydrive2 = "^1.21.3"

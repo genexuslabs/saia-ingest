@@ -19,6 +19,16 @@ You can use this repository as reference to extend it for other [data sources](#
 
 To install the package and its dependencies, follow these steps:
 
+### Prerequisites
+
+**macOS users:** Install the `libmagic` library before proceeding:
+
+```bash
+brew install libmagic
+```
+
+### Setup
+
 1. Create a new virtual environment and activate it, for this case we will create one called `venv`:
 
 ```bash
